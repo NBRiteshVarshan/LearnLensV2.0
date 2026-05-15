@@ -1,3 +1,4 @@
+
 import { useState, useRef, useEffect } from "react";
 
 const API_BASE = "http://localhost:8000"; // FastAPI backend URL
@@ -109,7 +110,6 @@ const Tag = ({ children, color = "accent" }) => {
   );
 };
 
-// ✅ FIXED: Removed invalid ":hover" pseudo-class from inline styles
 const Card = ({ children, style, onClick, hover = true }) => (
   <div 
     onClick={onClick} 
@@ -182,10 +182,15 @@ const Btn = ({ children, onClick, variant = "primary", loading, disabled, style 
 };
 
 // ─── API Helpers ──────────────────────────────────────────────────────────────
+// ✅ UPDATED: Better error handling for JSON responses from backend
 
 async function apiFetch(path, opts = {}) {
   const res = await fetch(`${API_BASE}${path}`, opts);
-  if (!res.ok) throw new Error(await res.text());
+  if (!res.ok) {
+    // Try to parse JSON error response first, fallback to text
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.detail || await res.text() || "Request failed");
+  }
   return res.json();
 }
 
@@ -196,33 +201,53 @@ async function uploadPDF(file) {
 }
 
 async function ingestPDF(pdfId) {
-  return apiFetch("/ingest", { method: "POST", body: JSON.stringify({ pdf_id: pdfId }), headers: { "Content-Type": "application/json" } });
+  return apiFetch("/ingest", { 
+    method: "POST", 
+    body: JSON.stringify({ pdf_id: pdfId }), 
+    headers: { "Content-Type": "application/json" } 
+  });
 }
 
-async function askQuestion(question, userId) {
-  return apiFetch("/ask", { method: "POST", body: JSON.stringify({ question, user_id: userId }), headers: { "Content-Type": "application/json" } });
+// ✅ UPDATED: Removed userId parameter
+async function askQuestion(question) {
+  return apiFetch("/ask", { 
+    method: "POST", 
+    body: JSON.stringify({ question }), 
+    headers: { "Content-Type": "application/json" } 
+  });
 }
 
-// UPDATED: Accept array of pdf_ids
-async function generateSummary(pdfIds, userId) {
+// ✅ UPDATED: Removed userId parameter
+async function generateSummary(pdfIds) {
   return apiFetch("/summary", { 
     method: "POST", 
-    body: JSON.stringify({ pdf_ids: Array.isArray(pdfIds) ? pdfIds : [pdfIds], user_id: userId }), 
+    body: JSON.stringify({ pdf_ids: Array.isArray(pdfIds) ? pdfIds : [pdfIds] }), 
     headers: { "Content-Type": "application/json" } 
   });
 }
 
-// UPDATED: Accept array of pdf_ids
-async function generateQuiz(pdfIds, userId, difficulty, mode, pyqText = "") {
+// ✅ UPDATED: Removed userId parameter
+async function generateQuiz(pdfIds, difficulty, mode, pyqText = "") {
   return apiFetch("/quiz", { 
     method: "POST", 
-    body: JSON.stringify({ pdf_ids: Array.isArray(pdfIds) ? pdfIds : [pdfIds], user_id: userId, difficulty, mode, pyq_text: pyqText }), 
+    body: JSON.stringify({ 
+      pdf_ids: Array.isArray(pdfIds) ? pdfIds : [pdfIds], 
+      difficulty, 
+      mode, 
+      pyq_text: pyqText 
+    }), 
     headers: { "Content-Type": "application/json" } 
   });
 }
 
-async function listPDFs(userId) {
-  return apiFetch(`/pdfs?user_id=${userId}`);
+// ✅ UPDATED: Removed userId parameter - endpoint no longer uses query params
+async function listPDFs() {
+  return apiFetch("/pdfs");
+}
+
+// ✅ NEW: Delete PDF function for new DELETE endpoint
+async function deletePDF(pdfId) {
+  return apiFetch(`/pdf/${pdfId}`, { method: "DELETE" });
 }
 
 // ─── Sidebar ──────────────────────────────────────────────────────────────────
@@ -234,7 +259,7 @@ const NAV = [
   { id: "quiz", icon: "🎯", label: "Quiz" },
 ];
 
-const Sidebar = ({ active, setActive, pdfs, selectedPdf, setSelectedPdf }) => (
+const Sidebar = ({ active, setActive, pdfs, selectedPdf, setSelectedPdf, onDeletePdf }) => (
   <div style={{
     width: 240, flexShrink: 0, height: "100vh", position: "sticky", top: 0,
     background: "var(--bg-card)", borderRight: "1px solid var(--border)",
@@ -295,7 +320,24 @@ const Sidebar = ({ active, setActive, pdfs, selectedPdf, setSelectedPdf }) => (
               onMouseLeave={e => e.currentTarget.style.background = selectedPdf?.id === p.id ? "rgba(124,107,255,0.08)" : "transparent"}
             >
               <span style={{ fontSize: 13 }}>📄</span>
-              <span style={{ fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</span>
+              <span style={{ fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{p.name}</span>
+              {/* Delete button in sidebar */}
+              {onDeletePdf && (
+                <button 
+                  onClick={(e) => { e.stopPropagation(); onDeletePdf(p.id, p.name); }}
+                  style={{
+                    background: "transparent", border: "none", color: "var(--error)",
+                    cursor: "pointer", fontSize: 14, padding: "2px 6px",
+                    opacity: 0.6, transition: "opacity 0.2s",
+                    display: "flex", alignItems: "center", justifyContent: "center"
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.opacity = "1"}
+                  onMouseLeave={e => e.currentTarget.style.opacity = "0.6"}
+                  title="Delete document"
+                >
+                  🗑️
+                </button>
+              )}
             </div>
           ))}
         </div>
@@ -322,7 +364,7 @@ const Sidebar = ({ active, setActive, pdfs, selectedPdf, setSelectedPdf }) => (
 
 // ─── Upload Tab ───────────────────────────────────────────────────────────────
 
-const UploadTab = ({ onIngested, pdfs }) => {
+const UploadTab = ({ onIngested, pdfs, onDeletePdf }) => {
   const [dragging, setDragging] = useState(false);
   const [file, setFile] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -415,7 +457,7 @@ const UploadTab = ({ onIngested, pdfs }) => {
         </div>
       )}
 
-      {/* Uploaded docs */}
+      {/* Uploaded docs with delete option */}
       {pdfs.length > 0 && (
         <div style={{ marginTop: 40 }}>
           <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-muted)", marginBottom: 12, textTransform: "uppercase", letterSpacing: "0.06em" }}>Indexed Documents</div>
@@ -429,6 +471,22 @@ const UploadTab = ({ onIngested, pdfs }) => {
                 <span style={{ fontSize: 18 }}>📄</span>
                 <span style={{ flex: 1, fontSize: 14 }}>{p.name}</span>
                 <Tag color="green">Indexed</Tag>
+                {/* Delete button */}
+                {onDeletePdf && (
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); onDeletePdf(p.id, p.name); }}
+                    style={{
+                      background: "transparent", border: "none", color: "var(--error)",
+                      cursor: "pointer", fontSize: 16, padding: "4px 8px",
+                      opacity: 0.7, transition: "opacity 0.2s"
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.opacity = "1"}
+                    onMouseLeave={e => e.currentTarget.style.opacity = "0.7"}
+                    title="Delete document"
+                  >
+                    🗑️
+                  </button>
+                )}
               </div>
             ))}
           </div>
@@ -440,7 +498,8 @@ const UploadTab = ({ onIngested, pdfs }) => {
 
 // ─── Chat Tab ─────────────────────────────────────────────────────────────────
 
-const ChatTab = ({ userId }) => {
+// ✅ UPDATED: Removed userId prop
+const ChatTab = () => {
   const [msgs, setMsgs] = useState([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -457,7 +516,8 @@ const ChatTab = ({ userId }) => {
     setMsgs(m => [...m, { role: "user", text: q }]);
     setLoading(true);
     try {
-      const { answer } = await askQuestion(q, userId);
+      // ✅ Removed userId from call
+      const { answer } = await askQuestion(q);
       setMsgs(m => [...m, { role: "ai", text: answer }]);
     } catch (e) {
       setMsgs(m => [...m, { role: "ai", text: `Error: ${e.message}`, error: true }]);
@@ -572,7 +632,8 @@ const ChatTab = ({ userId }) => {
 
 // ─── Summary Tab ──────────────────────────────────────────────────────────────
 
-const SummaryTab = ({ pdfs, userId }) => {
+// ✅ UPDATED: Removed userId prop
+const SummaryTab = ({ pdfs }) => {
   const [selectedPdfs, setSelectedPdfs] = useState([]);
   const [loading, setLoading] = useState(false);
   const [summary, setSummary] = useState(null);
@@ -593,7 +654,8 @@ const SummaryTab = ({ pdfs, userId }) => {
     setLoading(true); setSummary(null);
     try {
       const pdfIds = selectedPdfs.map(p => p.id);
-      const { summary: s } = await generateSummary(pdfIds, userId);
+      // ✅ Removed userId from call
+      const { summary: s } = await generateSummary(pdfIds);
       setSummary(s);
     } catch (e) {
       setSummary(`Error: ${e.message}`);
@@ -708,7 +770,8 @@ const DiffBadge = ({ d, active, onClick }) => {
   );
 };
 
-const QuizTab = ({ pdfs, userId }) => {
+// ✅ UPDATED: Removed userId prop
+const QuizTab = ({ pdfs }) => {
   const [selectedPdfs, setSelectedPdfs] = useState([]);
   const [difficulty, setDifficulty] = useState("Medium");
   const [mode, setMode] = useState("Notes Only");
@@ -745,7 +808,8 @@ const QuizTab = ({ pdfs, userId }) => {
     }
     try {
       const pdfIds = selectedPdfs.map(p => p.id);
-      const { quiz: q } = await generateQuiz(pdfIds, userId, difficulty, mode, pyqText);
+      // ✅ Removed userId from call
+      const { quiz: q } = await generateQuiz(pdfIds, difficulty, mode, pyqText);
       setQuiz(q);
     } catch (e) {
       alert("Error: " + e.message);
@@ -1002,16 +1066,29 @@ export default function App() {
   const [activeTab, setActiveTab] = useState("upload");
   const [pdfs, setPdfs] = useState([]);
   const [selectedPdf, setSelectedPdf] = useState(null);
-  const userId = "test_user";
+  // ✅ REMOVED: const userId = "test_user";
 
   useEffect(() => {
-    listPDFs(userId).then(r => setPdfs(r.pdfs || [])).catch(() => {});
+    // ✅ Removed userId parameter - endpoint no longer accepts query params
+    listPDFs().then(r => setPdfs(r.pdfs || [])).catch(() => {});
   }, []);
 
   const handleIngested = (pdf) => {
     setPdfs(p => [...p.filter(x => x.id !== pdf.id), pdf]);
     setSelectedPdf(pdf);
     setActiveTab("chat");
+  };
+
+  // ✅ NEW: Handle PDF deletion using new DELETE endpoint
+  const handleDeletePdf = async (pdfId, pdfName) => {
+    if (!confirm(`Delete "${pdfName}"? This will remove it from your library and vector database.`)) return;
+    try {
+      await deletePDF(pdfId);
+      setPdfs(p => p.filter(p => p.id !== pdfId));
+      if (selectedPdf?.id === pdfId) setSelectedPdf(null);
+    } catch (e) {
+      alert(`Failed to delete: ${e.message}`);
+    }
   };
 
   return (
@@ -1024,12 +1101,13 @@ export default function App() {
           pdfs={pdfs}
           selectedPdf={selectedPdf}
           setSelectedPdf={setSelectedPdf}
+          onDeletePdf={handleDeletePdf}
         />
         <main style={{ flex: 1, overflowY: "auto", padding: "40px 48px" }}>
-          {activeTab === "upload" && <UploadTab onIngested={handleIngested} pdfs={pdfs} />}
-          {activeTab === "chat" && <ChatTab userId={userId} />}
-          {activeTab === "summary" && <SummaryTab pdfs={pdfs} userId={userId} />}
-          {activeTab === "quiz" && <QuizTab pdfs={pdfs} userId={userId} />}
+          {activeTab === "upload" && <UploadTab onIngested={handleIngested} pdfs={pdfs} onDeletePdf={handleDeletePdf} />}
+          {activeTab === "chat" && <ChatTab />}
+          {activeTab === "summary" && <SummaryTab pdfs={pdfs} />}
+          {activeTab === "quiz" && <QuizTab pdfs={pdfs} />}
         </main>
       </div>
     </>
