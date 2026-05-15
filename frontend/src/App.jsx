@@ -109,17 +109,30 @@ const Tag = ({ children, color = "accent" }) => {
   );
 };
 
+// ✅ FIXED: Removed invalid ":hover" pseudo-class from inline styles
 const Card = ({ children, style, onClick, hover = true }) => (
-  <div onClick={onClick} style={{
-    background: "var(--bg-card)", border: "1px solid var(--border)",
-    borderRadius: "var(--radius-lg)", padding: "1.5rem",
-    transition: "all 0.2s ease", cursor: onClick ? "pointer" : "default",
-    ...(hover && onClick ? { ":hover": {} } : {}),
-    ...style,
-  }}
-    onMouseEnter={e => hover && onClick && (e.currentTarget.style.borderColor = "var(--border-accent)", e.currentTarget.style.background = "var(--bg-elevated)")}
-    onMouseLeave={e => hover && onClick && (e.currentTarget.style.borderColor = "var(--border)", e.currentTarget.style.background = "var(--bg-card)")}
-  >{children}</div>
+  <div 
+    onClick={onClick} 
+    style={{
+      background: "var(--bg-card)", 
+      border: "1px solid var(--border)",
+      borderRadius: "var(--radius-lg)", 
+      padding: "1.5rem",
+      transition: "all 0.2s ease", 
+      cursor: onClick ? "pointer" : "default",
+      ...style,
+    }}
+    onMouseEnter={e => hover && onClick && (
+      e.currentTarget.style.borderColor = "var(--border-accent)", 
+      e.currentTarget.style.background = "var(--bg-elevated)"
+    )}
+    onMouseLeave={e => hover && onClick && (
+      e.currentTarget.style.borderColor = "var(--border)", 
+      e.currentTarget.style.background = "var(--bg-card)"
+    )}
+  >
+    {children}
+  </div>
 );
 
 const Btn = ({ children, onClick, variant = "primary", loading, disabled, style }) => {
@@ -190,12 +203,22 @@ async function askQuestion(question, userId) {
   return apiFetch("/ask", { method: "POST", body: JSON.stringify({ question, user_id: userId }), headers: { "Content-Type": "application/json" } });
 }
 
-async function generateSummary(pdfId, userId) {
-  return apiFetch("/summary", { method: "POST", body: JSON.stringify({ pdf_id: pdfId, user_id: userId }), headers: { "Content-Type": "application/json" } });
+// UPDATED: Accept array of pdf_ids
+async function generateSummary(pdfIds, userId) {
+  return apiFetch("/summary", { 
+    method: "POST", 
+    body: JSON.stringify({ pdf_ids: Array.isArray(pdfIds) ? pdfIds : [pdfIds], user_id: userId }), 
+    headers: { "Content-Type": "application/json" } 
+  });
 }
 
-async function generateQuiz(pdfId, userId, difficulty, mode, pyqText = "") {
-  return apiFetch("/quiz", { method: "POST", body: JSON.stringify({ pdf_id: pdfId, user_id: userId, difficulty, mode, pyq_text: pyqText }), headers: { "Content-Type": "application/json" } });
+// UPDATED: Accept array of pdf_ids
+async function generateQuiz(pdfIds, userId, difficulty, mode, pyqText = "") {
+  return apiFetch("/quiz", { 
+    method: "POST", 
+    body: JSON.stringify({ pdf_ids: Array.isArray(pdfIds) ? pdfIds : [pdfIds], user_id: userId, difficulty, mode, pyq_text: pyqText }), 
+    headers: { "Content-Type": "application/json" } 
+  });
 }
 
 async function listPDFs(userId) {
@@ -550,15 +573,27 @@ const ChatTab = ({ userId }) => {
 // ─── Summary Tab ──────────────────────────────────────────────────────────────
 
 const SummaryTab = ({ pdfs, userId }) => {
-  const [selPdf, setSelPdf] = useState(null);
+  const [selectedPdfs, setSelectedPdfs] = useState([]);
   const [loading, setLoading] = useState(false);
   const [summary, setSummary] = useState(null);
 
+  const togglePdf = (pdf) => {
+    setSelectedPdfs(prev => {
+      const exists = prev.find(p => p.id === pdf.id);
+      if (exists) {
+        return prev.filter(p => p.id !== pdf.id);
+      } else {
+        return [...prev, pdf];
+      }
+    });
+  };
+
   const handleSummary = async () => {
-    if (!selPdf) return;
+    if (selectedPdfs.length === 0) return;
     setLoading(true); setSummary(null);
     try {
-      const { summary: s } = await generateSummary(selPdf.id, userId);
+      const pdfIds = selectedPdfs.map(p => p.id);
+      const { summary: s } = await generateSummary(pdfIds, userId);
       setSummary(s);
     } catch (e) {
       setSummary(`Error: ${e.message}`);
@@ -573,7 +608,7 @@ const SummaryTab = ({ pdfs, userId }) => {
         <h1 style={{ fontFamily: "var(--font-display)", fontSize: 32, fontWeight: 700, marginBottom: 8 }}>
           Smart <span style={{ color: "var(--accent)" }}>Summary</span>
         </h1>
-        <p style={{ color: "var(--text-muted)", fontSize: 15 }}>Get a structured revision summary from any of your indexed documents.</p>
+        <p style={{ color: "var(--text-muted)", fontSize: 15 }}>Get a structured revision summary from one or multiple indexed documents.</p>
       </div>
 
       {pdfs.length === 0 ? (
@@ -583,22 +618,51 @@ const SummaryTab = ({ pdfs, userId }) => {
         </Card>
       ) : (
         <>
-          {/* PDF selector */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 12, marginBottom: 20 }}>
-            {pdfs.map(p => (
-              <Card key={p.id} onClick={() => setSelPdf(p)} style={{
-                padding: "14px 16px", textAlign: "center",
-                border: selPdf?.id === p.id ? "1px solid var(--accent)" : "1px solid var(--border)",
-                background: selPdf?.id === p.id ? "var(--accent-glow)" : "var(--bg-card)",
-              }}>
-                <div style={{ fontSize: 24, marginBottom: 6 }}>📄</div>
-                <div style={{ fontSize: 12, color: "var(--text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</div>
-              </Card>
-            ))}
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+              Select Documents {selectedPdfs.length > 0 && <span style={{ color: "var(--accent)", marginLeft: 6 }}>({selectedPdfs.length} selected)</span>}
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 12, marginBottom: 20 }}>
+              {pdfs.map(p => {
+                const isSelected = selectedPdfs.find(sp => sp.id === p.id);
+                return (
+                  <Card 
+                    key={p.id} 
+                    onClick={() => togglePdf(p)} 
+                    style={{
+                      padding: "14px 16px", 
+                      textAlign: "center",
+                      border: isSelected ? "1px solid var(--accent)" : "1px solid var(--border)",
+                      background: isSelected ? "var(--accent-glow)" : "var(--bg-card)",
+                      position: "relative",
+                    }}
+                  >
+                    <div style={{ 
+                      position: "absolute", 
+                      top: 8, 
+                      right: 8, 
+                      width: 20, 
+                      height: 20, 
+                      borderRadius: "50%", 
+                      background: isSelected ? "var(--accent)" : "var(--border)",
+                      display: "flex", 
+                      alignItems: "center", 
+                      justifyContent: "center",
+                      fontSize: 12,
+                      transition: "all 0.2s",
+                    }}>
+                      {isSelected && "✓"}
+                    </div>
+                    <div style={{ fontSize: 24, marginBottom: 6 }}>📄</div>
+                    <div style={{ fontSize: 12, color: "var(--text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</div>
+                  </Card>
+                );
+              })}
+            </div>
           </div>
 
-          <Btn onClick={handleSummary} loading={loading} disabled={!selPdf}>
-            {loading ? "Generating…" : "Generate Summary →"}
+          <Btn onClick={handleSummary} loading={loading} disabled={selectedPdfs.length === 0}>
+            {loading ? "Generating…" : `Generate Summary from ${selectedPdfs.length || "1"} Document${selectedPdfs.length !== 1 ? "s" : ""} →`}
           </Btn>
 
           {summary && (
@@ -645,7 +709,7 @@ const DiffBadge = ({ d, active, onClick }) => {
 };
 
 const QuizTab = ({ pdfs, userId }) => {
-  const [selPdf, setSelPdf] = useState(null);
+  const [selectedPdfs, setSelectedPdfs] = useState([]);
   const [difficulty, setDifficulty] = useState("Medium");
   const [mode, setMode] = useState("Notes Only");
   const [pyqFile, setPyqFile] = useState(null);
@@ -656,8 +720,19 @@ const QuizTab = ({ pdfs, userId }) => {
   const [score, setScore] = useState(0);
   const pyqRef = useRef();
 
+  const togglePdf = (pdf) => {
+    setSelectedPdfs(prev => {
+      const exists = prev.find(p => p.id === pdf.id);
+      if (exists) {
+        return prev.filter(p => p.id !== pdf.id);
+      } else {
+        return [...prev, pdf];
+      }
+    });
+  };
+
   const handleGenerate = async () => {
-    if (!selPdf) return;
+    if (selectedPdfs.length === 0) return;
     setLoading(true); setQuiz(null); setAnswers({}); setChecked({}); setScore(0);
     let pyqText = "";
     if (mode === "Notes + PYQ" && pyqFile) {
@@ -669,7 +744,8 @@ const QuizTab = ({ pdfs, userId }) => {
       } catch (_) {}
     }
     try {
-      const { quiz: q } = await generateQuiz(selPdf.id, userId, difficulty, mode, pyqText);
+      const pdfIds = selectedPdfs.map(p => p.id);
+      const { quiz: q } = await generateQuiz(pdfIds, userId, difficulty, mode, pyqText);
       setQuiz(q);
     } catch (e) {
       alert("Error: " + e.message);
@@ -704,26 +780,53 @@ const QuizTab = ({ pdfs, userId }) => {
         </Card>
       ) : (
         <>
-          {/* Config panel */}
           {!quiz && (
             <Card style={{ marginBottom: 24 }}>
-              {/* PDF */}
               <div style={{ marginBottom: 20 }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.06em" }}>Select Document</div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                  Select Documents {selectedPdfs.length > 0 && <span style={{ color: "var(--accent)", marginLeft: 6 }}>({selectedPdfs.length} selected)</span>}
+                </div>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                  {pdfs.map(p => (
-                    <div key={p.id} onClick={() => setSelPdf(p)} style={{
-                      padding: "8px 14px", borderRadius: "var(--radius)", fontSize: 13, cursor: "pointer",
-                      border: selPdf?.id === p.id ? "1px solid var(--accent)" : "1px solid var(--border)",
-                      background: selPdf?.id === p.id ? "var(--accent-glow)" : "transparent",
-                      color: selPdf?.id === p.id ? "var(--accent-bright)" : "var(--text-muted)",
-                      transition: "all 0.15s",
-                    }}>📄 {p.name}</div>
-                  ))}
+                  {pdfs.map(p => {
+                    const isSelected = selectedPdfs.find(sp => sp.id === p.id);
+                    return (
+                      <div 
+                        key={p.id} 
+                        onClick={() => togglePdf(p)} 
+                        style={{
+                          padding: "8px 14px", 
+                          borderRadius: "var(--radius)", 
+                          fontSize: 13, 
+                          cursor: "pointer",
+                          border: isSelected ? "1px solid var(--accent)" : "1px solid var(--border)",
+                          background: isSelected ? "var(--accent-glow)" : "transparent",
+                          color: isSelected ? "var(--accent-bright)" : "var(--text-muted)",
+                          transition: "all 0.15s",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 6,
+                        }}
+                      >
+                        <div style={{
+                          width: 16,
+                          height: 16,
+                          borderRadius: 4,
+                          border: isSelected ? "1px solid var(--accent)" : "1px solid var(--border)",
+                          background: isSelected ? "var(--accent)" : "transparent",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          fontSize: 10,
+                        }}>
+                          {isSelected && "✓"}
+                        </div>
+                        📄 {p.name}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 
-              {/* Difficulty */}
               <div style={{ marginBottom: 20 }}>
                 <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.06em" }}>Difficulty</div>
                 <div style={{ display: "flex", gap: 8 }}>
@@ -731,7 +834,6 @@ const QuizTab = ({ pdfs, userId }) => {
                 </div>
               </div>
 
-              {/* Mode */}
               <div style={{ marginBottom: 20 }}>
                 <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.06em" }}>Mode</div>
                 <div style={{ display: "flex", gap: 8 }}>
@@ -767,16 +869,14 @@ const QuizTab = ({ pdfs, userId }) => {
                 </div>
               )}
 
-              <Btn onClick={handleGenerate} loading={loading} disabled={!selPdf}>
-                {loading ? "Generating Quiz…" : "Generate 10 Questions →"}
+              <Btn onClick={handleGenerate} loading={loading} disabled={selectedPdfs.length === 0}>
+                {loading ? "Generating Quiz…" : `Generate 10 Questions from ${selectedPdfs.length || "1"} Document${selectedPdfs.length !== 1 ? "s" : ""} →`}
               </Btn>
             </Card>
           )}
 
-          {/* Quiz questions */}
           {quiz && (
             <div>
-              {/* Score bar */}
               <div style={{
                 display: "flex", alignItems: "center", justifyContent: "space-between",
                 marginBottom: 24, padding: "14px 20px", borderRadius: "var(--radius-lg)",
@@ -808,7 +908,6 @@ const QuizTab = ({ pdfs, userId }) => {
                 </div>
               </div>
 
-              {/* Progress bar */}
               <div style={{ height: 4, background: "var(--bg-elevated)", borderRadius: 2, marginBottom: 24, overflow: "hidden" }}>
                 <div style={{
                   height: "100%", borderRadius: 2, transition: "width 0.4s ease",
