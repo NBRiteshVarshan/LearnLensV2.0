@@ -10,6 +10,8 @@ import json
 import random
 from typing import List, Optional
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
@@ -41,10 +43,43 @@ if not GROQ_API_KEY:
     raise ValueError("GROQ_API_KEY not found in environment variables")
 
 # =========================================================
+# GROQ CLIENT
+# =========================================================
+
+groq_client = Groq(api_key=GROQ_API_KEY)
+LLM_MODEL = "llama-3.3-70b-versatile"
+
+# =========================================================
+# QDRANT DB + EMBEDDING MODEL (lazy — set in lifespan)
+# =========================================================
+
+COLLECTION_NAME = "learnlens_chunks"
+qdrant: QdrantClient = None
+embedding_model: SentenceTransformer = None
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global qdrant, embedding_model
+    qdrant = QdrantClient(path="./qdrant_data")
+    existing = [c.name for c in qdrant.get_collections().collections]
+    if COLLECTION_NAME not in existing:
+        qdrant.create_collection(
+            collection_name=COLLECTION_NAME,
+            vectors_config=VectorParams(size=384, distance=Distance.COSINE),
+        )
+    print("Loading embedding model...")
+    embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
+    print("Embedding model loaded")
+    yield
+    qdrant.close()
+
+
+# =========================================================
 # FASTAPI APP
 # =========================================================
 
-app = FastAPI(title="LearnLens API", version="3.1")
+app = FastAPI(title="LearnLens API", version="3.1", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -53,50 +88,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# =========================================================
-# GROQ CLIENT
-# =========================================================
-
-groq_client = Groq(api_key=GROQ_API_KEY)
-LLM_MODEL = "llama-3.3-70b-versatile"
-
-# =========================================================
-# QDRANT DB
-# =========================================================
-
-# Use local storage for development
-qdrant = QdrantClient(path="./qdrant_data")
-
-COLLECTION_NAME = "learnlens_chunks"
-
-def init_qdrant_collection():
-    """Initialize Qdrant collection if it doesn't exist."""
-    try:
-        existing_collections = [c.name for c in qdrant.get_collections().collections]
-        
-        if COLLECTION_NAME not in existing_collections:
-            qdrant.create_collection(
-                collection_name=COLLECTION_NAME,
-                vectors_config=VectorParams(
-                    size=384,  # all-MiniLM-L6-v2 embedding dimension
-                    distance=Distance.COSINE
-                )
-            )
-            print(f"✅ Created Qdrant collection: {COLLECTION_NAME}")
-    except Exception as e:
-        print(f"⚠️ Qdrant init warning: {e}")
-
-# Initialize on startup
-init_qdrant_collection()
-
-# =========================================================
-# EMBEDDING MODEL
-# =========================================================
-
-print("🔄 Loading embedding model...")
-embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
-print("✅ Embedding model loaded")
 
 # =========================================================
 # TEMP PDF STORE (in-memory)
