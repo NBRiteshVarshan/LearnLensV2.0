@@ -1,0 +1,196 @@
+/* ─── LearnLens — Academic OS · Design Tokens ────────────────────────────── */
+
+:root, [data-theme="light"] {
+  /* Surface tones — paper-like, warm */
+  --bg:           oklch(98.5% 0.008 85);      /* warm ivory page */
+  --bg-sunken:   oklch(96.5% 0.010 85);      /* desk surface */
+  --surface:      oklch(99.5% 0.005 85);      /* card paper */
+  --surface-2:    oklch(97.2% 0.008 85);      /* recessed panel */
+  --surface-3:    oklch(94.5% 0.010 85);      /* deeper recess */
+  --rail:         oklch(96% 0.008 85);
+
+  /* Lines */
+  --line:         oklch(89% 0.010 85);
+  --line-soft:    oklch(93% 0.008 85);
+  --line-strong:  oklch(82% 0.010 85);
+
+  /* Ink */
+  --ink:          oklch(22% 0.015 280);       /* near-black charcoal */
+  --ink-2:        oklch(38% 0.012 280);       /* secondary copy */
+  --ink-3:        oklch(55% 0.010 280);       /* tertiary / labels */
+  --ink-4:        oklch(70% 0.008 280);       /* hairline / placeholder */
+
+  /* Accent — desaturated indigo as primary system accent */
+  --accent:       oklch(48% 0.13  265);
+  --accent-soft:  oklch(94% 0.04  265);
+  --accent-line:  oklch(80% 0.08  265);
+  --on-accent:    oklch(99% 0.005 265);
+
+  /* Status hues — all share chroma 0.10, lightness 50% */
+  --ok:           oklch(50% 0.10 150);
+  --ok-soft:      oklch(95% 0.03 150);
+  --warn:         oklch(60% 0.10 80);
+  --warn-soft:    oklch(95% 0.03 80);
+  --due:          oklch(55% 0.12 35);
+  --due-soft:     oklch(95% 0.03 35);
+
+  /* Subject hues — each gets accent + soft tint + line */
+  --math:         oklch(48% 0.13 265);   --math-soft: oklch(95% 0.03 265);   --math-line: oklch(82% 0.06 265);
+  --prog:         oklch(52% 0.11 155);   --prog-soft: oklch(94% 0.03 155);   --prog-line: oklch(80% 0.06 155);
+  --bio:          oklch(48% 0.10 145);   --bio-soft:  oklch(94% 0.03 145);   --bio-line:  oklch(80% 0.06 145);
+  --chem:         oklch(54% 0.12 45);    --chem-soft: oklch(95% 0.03 45);    --chem-line: oklch(82% 0.06 45);
+  --lit:          oklch(46% 0.09 30);    --lit-soft:  oklch(95% 0.03 30);    --lit-line:  oklch(82% 0.06 30);
+  --phys:         oklch(50% 0.10 235);   --phys-soft: oklch(95% 0.03 235);   --phys-line: oklch(82% 0.06 235);
+  --hist:         oklch(50% 0.11 70);    --hist-soft: oklch(95% 0.03 70);    --hist-line: oklch(82% 0.06 70);
+
+  --shadow-sm: 0 1px 0 oklch(20% 0.01 280 / 0.04), 0 1px 2px oklch(20% 0.01 280 / 0.04);
+  --shadow-md: 0 1px 0 oklch(20% 0.01 280 / 0.04), 0 8px 24px -10px oklch(20% 0.01 280 / 0.12);
+  --shadow-lg: 0 24px 60px -24px oklch(20% 0.01 280 / 0.18);
+
+  --code-bg: oklch(96% 0.005 280);
+  --code-ink: oklch(28% 0.02 280);
+}
+
+[data-theme="dark"] {
+  /* Surface tones — graphite, layered */
+  --bg:           oklch(18% 0.010 260);       /* page graphite */
+  --bg-sunken:   oklch(15% 0.010 260);
+  --surface:      oklch(21% 0.012 260);       /* card */
+  --surface-2:    oklch(24% 0.012 260);       /* elevated */
+  --surface-3:    oklch(27% 0.014 260);       /* hover */
+  --rail:         oklch(16% 0.010 260);
+
+  --line:         oklch(30% 0.012 260);
+  --line-soft:    oklch(25% 0.012 260);
+  --line-strong:  oklch(38% 0.014 260);
+
+  --ink:          oklch(94% 0.012 90);        /* soft warm white */
+  --ink-2:        oklch(78% 0.010 90);
+  --ink-3:        oklch(60% 0.010 90);
+  --ink-4:        oklch(45% 0.010 90);
+
+  --accent:       oklch(72% 0.10 235);        /* muted cyan-blue */
+  --accent-soft:  oklch(28% 0.05 235);
+  --accent-line:  oklch(40% 0.07 235);
+  --on-accent:    oklch(15% 0.02 235);
+
+  --ok:           oklch(72% 0.10 155);
+  --ok-soft:      oklch(28% 0.04 155);
+  --warn:         oklch(78% 0.10 85);
+  --warn-soft:    oklch(28% 0.04 85);
+  --due:          oklch(72% 0.12 35);
+  --due-soft:     oklch(28% 0.05 35);
+
+  --math:         oklch(74% 0.10 240);   --math-soft: oklch(26% 0.05 240);   --math-line: oklch(38% 0.07 240);
+  --prog:         oklch(74% 0.09 155);   --prog-soft: oklch(26% 0.04 155);   --prog-line: oklch(38% 0.06 155);
+  --bio:          oklch(72% 0.09 145);   --bio-soft:  oklch(26% 0.04 145);   --bio-line:  oklch(38% 0.06 145);
+  --chem:         oklch(76% 0.10 50);    --chem-soft: oklch(28% 0.05 50);    --chem-line: oklch(38% 0.07 50);
+  --lit:          oklch(74% 0.08 35);    --lit-soft:  oklch(26% 0.04 35);    --lit-line:  oklch(38% 0.06 35);
+  --phys:         oklch(72% 0.08 230);   --phys-soft: oklch(26% 0.04 230);   --phys-line: oklch(38% 0.06 230);
+  --hist:         oklch(76% 0.09 75);    --hist-soft: oklch(28% 0.04 75);    --hist-line: oklch(38% 0.06 75);
+
+  --shadow-sm: 0 1px 0 oklch(0% 0 0 / 0.3), 0 1px 2px oklch(0% 0 0 / 0.3);
+  --shadow-md: 0 1px 0 oklch(0% 0 0 / 0.3), 0 8px 24px -10px oklch(0% 0 0 / 0.5);
+  --shadow-lg: 0 24px 60px -24px oklch(0% 0 0 / 0.6);
+
+  --code-bg: oklch(15% 0.010 260);
+  --code-ink: oklch(82% 0.012 90);
+}
+
+/* Type system */
+:root {
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Newsreader", "Source Serif Pro", Georgia, serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  --fs-12: 11.5px;
+  --fs-13: 12.5px;
+  --fs-14: 13.5px;
+  --fs-15: 14.5px;
+  --fs-16: 15.5px;
+  --fs-18: 17.5px;
+  --fs-22: 22px;
+  --fs-28: 28px;
+  --fs-36: 36px;
+  --fs-48: 48px;
+
+  --r-xs: 4px;
+  --r-sm: 6px;
+  --r:    8px;
+  --r-md: 10px;
+  --r-lg: 14px;
+  --r-xl: 20px;
+
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-8: 32px;
+  --sp-10: 40px;
+  --sp-12: 48px;
+
+  /* density */
+  --row-h: 36px;
+  --rail-w: 232px;
+  --top-h: 56px;
+  --min-canvas-w: 1100px;  /* content scrolls horizontally below this */
+}
+
+[data-density="compact"] { --row-h: 30px; }
+[data-density="cozy"] { --row-h: 36px; }
+[data-density="comfortable"] { --row-h: 44px; }
+
+* { box-sizing: border-box; }
+*::before, *::after { box-sizing: border-box; }
+html, body, #root { margin: 0; padding: 0; height: 100%; }
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: var(--fs-15);
+  line-height: 1.55;
+  font-feature-settings: "ss01", "ss02", "cv11";
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  transition: background 240ms ease, color 240ms ease;
+}
+
+button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+input, textarea, select { font: inherit; color: inherit; }
+a { color: inherit; text-decoration: none; }
+
+::selection { background: var(--accent-soft); color: var(--accent); }
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--line); border-radius: 8px; border: 2px solid var(--bg); }
+::-webkit-scrollbar-thumb:hover { background: var(--line-strong); }
+
+/* Keyframes */
+@keyframes ll-fade-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes ll-pulse-soft { 0%,100% { opacity: 1; } 50% { opacity: 0.55; } }
+@keyframes ll-caret { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+
+/* Utility */
+.mono { font-family: var(--font-mono); font-feature-settings: "ss01", "ss02"; }
+.serif { font-family: var(--font-serif); }
+.tabular { font-variant-numeric: tabular-nums; }
+.label-xs {
+  font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--ink-3); font-weight: 500;
+}
+.hairline { border: 1px solid var(--line); }
+.muted { color: var(--ink-3); }
+.dim { color: var(--ink-2); }
+
+/* Subject color binding helper */
+[data-subject="math"]  { --s: var(--math);  --s-soft: var(--math-soft);  --s-line: var(--math-line); }
+[data-subject="prog"]  { --s: var(--prog);  --s-soft: var(--prog-soft);  --s-line: var(--prog-line); }
+[data-subject="bio"]   { --s: var(--bio);   --s-soft: var(--bio-soft);   --s-line: var(--bio-line); }
+[data-subject="chem"]  { --s: var(--chem);  --s-soft: var(--chem-soft);  --s-line: var(--chem-line); }
+[data-subject="lit"]   { --s: var(--lit);   --s-soft: var(--lit-soft);   --s-line: var(--lit-line); }
+[data-subject="phys"]  { --s: var(--phys);  --s-soft: var(--phys-soft);  --s-line: var(--phys-line); }
+[data-subject="hist"]  { --s: var(--hist);  --s-soft: var(--hist-soft);  --s-line: var(--hist-line); }

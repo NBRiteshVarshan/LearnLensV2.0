@@ -1,111 +1,86 @@
-# 🚀 LearnLens v2.0 — Exam Intelligence Platform
+# LearnLens — design integration
 
-LearnLens v2.0 is a complete rebuild of our original hackathon project — now faster, cleaner, and significantly more powerful.
+A complete academic-OS shell that wraps your existing LearnLens V2.0 AI tools. **Nothing in your FastAPI backend changes.** All four current features (Upload, Ask AI, Summary, Quiz) keep working exactly as they do today, accessible from the new sidebar under **AI Tools**.
 
-Built after our experience at Sprint4Good (IIT Delhi), this version moves beyond a prototype into a structured AI-powered learning system with a proper frontend, better retrieval, and a more reliable LLM pipeline.
+## File map
 
----
+```
+frontend/
+├── src/
+│   ├── App.jsx                ← REPLACES yours (new shell + routes to LegacyApp)
+│   ├── main.jsx               ← REPLACES yours (now imports tokens.css)
+│   ├── styles/
+│   │   └── tokens.css         ← NEW — design tokens (light + dark + per-subject)
+│   └── learnlens/             ← NEW
+│       ├── data.js              mock content (subjects, tasks, calendar, etc.)
+│       ├── Shell.jsx            sidebar, top bar, command palette, primitives
+│       ├── Dashboard.jsx        "Today" view
+│       ├── Workspaces.jsx       Math · Programming · Biology · Literature workspaces
+│       ├── Views.jsx            Library · Calendar · Analytics · Inbox
+│       ├── TweaksPanel.jsx      floating panel (theme/density/accent/workflow)
+│       └── LegacyApp.jsx        ← your old App.jsx, preserved end-to-end
+```
 
-## 🧠 What is LearnLens?
+`LegacyApp.jsx` is your original `App.jsx` with two surgical patches:
+- Its CSS variables are scoped to `.ll-legacy` (so the old purple tokens don't
+  override the new design system globally).
+- It accepts `embedded`, `activeTab`, `setActiveTab` props so the new shell can
+  drive its sub-tabs externally. Standalone use still works
+  (`<LegacyApp />` with no props).
 
-Students often waste time searching for answers that are:
-- Not aligned with their syllabus  
-- Too generic  
-- Or just plain wrong  
+Your `package.json`, `vite.config.js`, `index.html`, and the entire backend tree are untouched.
 
-**LearnLens fixes that.**
+## Install
 
-You upload your notes → LearnLens understands them → and every answer, summary, or quiz comes strictly from *your content*.
+```bash
+cd LearnLensV2.0/frontend
+# back up your old App.jsx just in case
+cp src/App.jsx src/App.jsx.bak
 
-No hallucinations. No irrelevant internet noise. Just **your syllabus, optimized.**
+# copy this bundle in (files only — preserves your config + public/)
+cp -R <unzipped>/frontend/src/ src/
 
----
+# no new deps to install
+npm run dev
+```
 
-## ✨ What’s New in v2.0
+Open the dev URL. You should see the new dashboard. Click **AI Tools** in the
+left rail to access your existing Upload / Ask AI / Summary / Quiz flows, which
+still call your FastAPI backend at `http://localhost:8000` unmodified.
 
-### ⚡ Full Stack Upgrade
-- Streamlit ➝ **React (Vite) frontend**
-- Clean UI with real-time interactions
-- Sidebar navigation + multi-feature workflow
+## What's preserved
 
-### 🧩 Better Backend Architecture
-- FastAPI backend
-- Modular API endpoints (`/upload`, `/ask`, `/quiz`, etc.)
-- Improved error handling + retry mechanisms
+Every API call in your old codebase still runs against the same backend:
 
-### 🧠 Smarter AI Pipeline
-- Context-limited prompting (reduces hallucinations)
-- Strict JSON enforcement for quiz generation
-- Retry system for consistent outputs
+```js
+import {
+  apiFetch, uploadPDF, ingestPDF,
+  askQuestion, generateSummary, generateQuiz, listPDFs,
+} from "./learnlens/LegacyApp.jsx";
+```
 
-### 🗂️ Database Upgrade
-- MongoDB ➝ **ChromaDB (local vector DB)**
-- Faster ingestion + simpler setup
-- No external dependency required
+These are named exports off `LegacyApp.jsx` so any future workspace can call
+them directly — e.g. wire `askQuestion` into the math workspace's "ask about
+this theorem" action, or hook `generateQuiz` into the practice tab.
 
-### 🎯 Improved Quiz Engine
-- Guaranteed **10 valid MCQs**
-- Strict format validation
-- Difficulty-aware generation
-- PYQ-based pattern replication
+## Customisation
 
----
+The bottom-right ⚙ button opens **Tweaks**:
 
-## 🔥 Core Features
+- **Theme** — Day / Night (paper ivory ↔ graphite slate)
+- **Density** — Compact / Cozy / Comfort
+- **System accent** — Indigo / Sage / Rust / Slate (OKLCH)
+- **Workflow mode** — Deep study / Revision / Exam prep / Quick practice
+  (shown as a contextual chip in the top bar)
 
-### 📄 Upload & Index Notes
-- Upload PDF notes
-- Automatically:
-  - Extract text
-  - Chunk content
-  - Generate embeddings
-  - Store in ChromaDB
+State persists to `localStorage` under the key `learnlens.tweaks`.
 
----
+## Notes
 
-### 💬 Ask Questions
-- Ask anything from your notes
-- Uses semantic search to retrieve relevant chunks
-- LLM answers strictly from context
-
-> If the answer isn’t in your notes → it won’t make it up.
-
----
-
-### 📋 Smart Summary
-Generates structured summaries:
-- Title  
-- Key Concepts  
-- Important Points  
-- Revision bullets  
-
-Perfect for last-minute revision.
-
----
-
-### 🎯 Quiz Generator
-- Generates **10 MCQs**
-- Difficulty levels:
-  - Easy
-  - Medium
-  - Hard
-- Live scoring + explanations
-
-#### 🧠 PYQ Mode
-Upload previous year questions → LearnLens mimics the pattern and generates similar questions from your notes.
-
----
-
-## 🏗️ Tech Stack
-
-| Layer        | Technology |
-|--------------|------------|
-| Frontend     | React (Vite) |
-| Backend      | FastAPI |
-| LLM          | Ollama (gemma3:4b) |
-| Embeddings   | sentence-transformers (all-MiniLM-L6-v2) |
-| Vector DB    | ChromaDB |
-| PDF Parsing  | PyMuPDF |
-| Language     | Python + JavaScript |
-
----
+- **React 19** — uses `createRoot`, no class components, no `findDOMNode`.
+- **No new dependencies** — vanilla React + inline styles + tokens.css.
+- The mock data in `data.js` powers the dashboard / calendar / library views.
+  Swap in real backend calls when you're ready; the file is small and clean.
+- Subject workspace flavors (math / programming / biology / literature) are
+  routed inside `Workspaces.jsx::SubjectRouter`. Other subjects (physics,
+  chemistry, history) fall through to a placeholder ready for you to design.

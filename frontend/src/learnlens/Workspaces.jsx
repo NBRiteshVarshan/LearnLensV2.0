@@ -1,0 +1,944 @@
+import React from "react";
+import {
+  SUBJECTS,
+  MATH_UNITS, MATH_THEOREMS, MATH_PROBLEMS,
+  PROG_FILES, PROG_TERMINAL, PROG_CONCEPTS,
+  BIO_DIAGRAMS, BIO_GLOSSARY,
+  LIT_PASSAGE, LIT_ANNOTATIONS,
+} from "./data.js";
+import { Card, Pill, Btn, SectionTitle, Ic, SUBJECT_ICONS } from "./Shell.jsx";
+
+// ── Shared subject header ──────────────────────────────────────────────────
+function SubjectHeader({ s, tabs, tab, setTab }) {
+  const I = SUBJECT_ICONS[s.id];
+  return (
+    <div data-subject={s.id} style={{
+      padding: "22px 32px 0", borderBottom: "1px solid var(--line)",
+      background: `linear-gradient(180deg, color-mix(in oklch, var(--s-soft) 50%, var(--surface)) 0%, var(--bg) 100%)`,
+    }}>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 24, maxWidth: 1400, margin: "0 auto" }}>
+        <div style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
+          <div style={{
+            width: 44, height: 44, borderRadius: 8,
+            background: "var(--surface)", border: "1px solid var(--s-line)",
+            display: "grid", placeItems: "center", color: "var(--s)",
+            boxShadow: "var(--shadow-sm)",
+          }}>
+            <span style={{ width: 22, height: 22 }}><I /></span>
+          </div>
+          <div>
+            <div className="mono" style={{ fontSize: 11, color: "var(--ink-3)", marginBottom: 2 }}>
+              {s.code} · {s.instructor} · {s.session}
+            </div>
+            <h1 style={{
+              fontFamily: "var(--font-serif)", fontWeight: 400,
+              fontSize: "var(--fs-28)", letterSpacing: "-0.02em", lineHeight: 1.1,
+              marginBottom: 4,
+            }}>
+              {s.name} <span style={{ color: "var(--ink-3)" }}>·</span>{" "}
+              <span style={{ fontStyle: "italic", color: "var(--ink-2)" }}>{s.title}</span>
+            </h1>
+            <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+              <Pill subject={s.id} tone="subject">{s.unitDone} / {s.units} units</Pill>
+              <Pill tone="neutral">{s.resourceCount} resources</Pill>
+              <Pill tone="ok">{s.streak}-day streak</Pill>
+              <Pill tone={s.next.urgency}>Next: {s.next.due}</Pill>
+            </div>
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <Btn icon={Ic.Timer}>Start session</Btn>
+          <Btn icon={Ic.Bookmark} variant="ghost">Pin</Btn>
+          <Btn icon={Ic.Plus} variant="primary">Add resource</Btn>
+        </div>
+      </div>
+
+      <div style={{ display: "flex", gap: 4, marginTop: 22, maxWidth: 1400, margin: "22px auto 0" }}>
+        {tabs.map(t => {
+          const active = tab === t.id;
+          return (
+            <button key={t.id} onClick={() => setTab(t.id)} style={{
+              padding: "8px 14px", borderRadius: 0, position: "relative",
+              fontSize: "var(--fs-14)", fontWeight: active ? 500 : 400,
+              color: active ? "var(--ink)" : "var(--ink-3)",
+              borderBottom: `2px solid ${active ? "var(--s)" : "transparent"}`,
+              marginBottom: -1,
+            }}>
+              {t.label}
+              {t.count != null && (
+                <span className="mono tabular" style={{
+                  marginLeft: 6, fontSize: 10.5, padding: "1px 5px", borderRadius: 3,
+                  background: active ? "var(--s-soft)" : "var(--surface-2)",
+                  color: active ? "var(--s)" : "var(--ink-3)",
+                }}>{t.count}</span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MATHEMATICS WORKSPACE — formula/theorem-centric, grid-precise
+// ═══════════════════════════════════════════════════════════════════════════
+function MathWorkspace({ s }) {
+  const [tab, setTab] = useState("problems");
+  const tabs = [
+    { id: "problems", label: "Problem sets", count: 8 },
+    { id: "theorems", label: "Theorems",     count: 23 },
+    { id: "notes",    label: "Notes" },
+    { id: "lectures", label: "Lectures",     count: 14 },
+    { id: "pyqs",     label: "PYQs",         count: 36 },
+  ];
+
+  return (
+    <div data-subject={s.id}>
+      <SubjectHeader s={s} tabs={tabs} tab={tab} setTab={setTab} />
+      <div style={{ padding: "24px 32px 60px", maxWidth: 1400, margin: "0 auto" }}>
+        {/* Unit ribbon */}
+        <UnitRibbon units={MATH_UNITS} />
+
+        {/* Three-column layout: problems | scratch/theorems | sidebar */}
+        <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 16, marginTop: 22 }}>
+          {/* Problem set */}
+          <Card padded={false}>
+            <div style={{
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+              padding: "14px 18px", borderBottom: "1px solid var(--line)",
+            }}>
+              <div>
+                <div className="label-xs">Active problem set</div>
+                <div style={{ fontSize: "var(--fs-18)", fontWeight: 500, letterSpacing: "-0.01em" }}>
+                  §4 Cauchy sequences <span className="mono" style={{ color: "var(--ink-3)", fontWeight: 400 }}>· spivak ch.7</span>
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 6 }}>
+                <Pill tone="due">due tomorrow</Pill>
+              </div>
+            </div>
+            <div style={{ padding: "6px 0" }}>
+              {MATH_PROBLEMS.map((p, i) => <ProblemRow key={p.n} p={p} first={i === 0} />)}
+            </div>
+          </Card>
+
+          {/* Theorems */}
+          <Card padded={false}>
+            <div style={{
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+              padding: "14px 18px", borderBottom: "1px solid var(--line)",
+            }}>
+              <div>
+                <div className="label-xs">Theorem reference</div>
+                <div style={{ fontSize: "var(--fs-18)", fontWeight: 500, letterSpacing: "-0.01em" }}>Compendium</div>
+              </div>
+              <Btn icon={Ic.Sparkle} variant="ghost">Recall test</Btn>
+            </div>
+            <div style={{ padding: "10px 18px 14px", display: "flex", flexDirection: "column", gap: 10 }}>
+              {MATH_THEOREMS.map(t => <TheoremBlock key={t.n} t={t} />)}
+            </div>
+            <div style={{
+              padding: "12px 18px", borderTop: "1px solid var(--line)",
+              background: "var(--surface-2)",
+            }}>
+              <div className="label-xs" style={{ marginBottom: 6 }}>Quick formula</div>
+              <div className="mono" style={{
+                fontSize: "var(--fs-15)", color: "var(--code-ink)",
+                padding: "8px 12px", background: "var(--code-bg)",
+                borderRadius: "var(--r-sm)", border: "1px solid var(--line)",
+                fontFeatureSettings: '"ss01"',
+                lineHeight: 1.6,
+              }}>
+                ∀ε &gt; 0, ∃N ∈ ℕ : m,n ≥ N ⟹ |a_m − a_n| &lt; ε
+              </div>
+            </div>
+          </Card>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function UnitRibbon({ units }) {
+  return (
+    <Card padded={false}>
+      <div style={{
+        display: "grid", gridTemplateColumns: `repeat(${units.length}, 1fr)`,
+        position: "relative",
+      }}>
+        {units.map((u, i) => (
+          <div key={u.n} style={{
+            padding: "14px 16px",
+            borderRight: i < units.length - 1 ? "1px solid var(--line-soft)" : "none",
+            background: u.current ? "var(--s-soft)" : "transparent",
+            position: "relative",
+          }}>
+            {u.current && (
+              <div style={{ position: "absolute", left: 0, right: 0, top: 0, height: 2, background: "var(--s)" }} />
+            )}
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+              <span className="mono" style={{
+                fontSize: 10, color: u.done ? "var(--ok)" : u.current ? "var(--s)" : "var(--ink-3)",
+              }}>{u.n}</span>
+              {u.done && <span style={{ width: 12, height: 12, color: "var(--ok)" }}><Ic.Check /></span>}
+              {u.current && <span style={{ width: 5, height: 5, borderRadius: "50%", background: "var(--s)", animation: "ll-pulse-soft 1.6s infinite" }} />}
+            </div>
+            <div style={{
+              fontSize: "var(--fs-13)", fontWeight: u.current ? 500 : 400,
+              color: u.done ? "var(--ink-3)" : "var(--ink)",
+              textDecoration: u.done ? "line-through" : "none",
+              lineHeight: 1.3,
+            }}>{u.title}</div>
+            <div style={{ fontSize: 11, color: "var(--ink-3)", marginTop: 6 }} className="mono">{u.problems} pr.</div>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+function ProblemRow({ p, first }) {
+  const tone = { done: "var(--ok)", doing: "var(--accent)", todo: "var(--ink-4)" }[p.status];
+  const diffMap = { easy: "I", med: "II", hard: "III" };
+  const diffColor = { easy: "var(--ok)", med: "var(--warn)", hard: "var(--due)" }[p.diff];
+  return (
+    <div style={{
+      display: "grid", gridTemplateColumns: "auto auto 1fr auto auto",
+      gap: 12, alignItems: "center", padding: "9px 18px",
+      borderTop: first ? "none" : "1px solid var(--line-soft)",
+    }}>
+      <span className="mono tabular" style={{ fontSize: 11, color: "var(--ink-3)", minWidth: 26 }}>{p.n}</span>
+      <span style={{ width: 8, height: 8, borderRadius: "50%", background: tone }} />
+      <span className="serif" style={{
+        fontFamily: "var(--font-serif)", fontSize: "var(--fs-14)",
+        color: p.status === "done" ? "var(--ink-3)" : "var(--ink)",
+        textDecoration: p.status === "done" ? "line-through" : "none",
+      }}>{p.text}</span>
+      <span className="mono" style={{ fontSize: 10.5, color: diffColor, fontWeight: 500 }}>
+        {diffMap[p.diff]}
+      </span>
+      <button style={{
+        fontSize: 11, color: "var(--ink-3)", padding: "3px 8px",
+        border: "1px solid var(--line)", borderRadius: 3,
+      }}>open</button>
+    </div>
+  );
+}
+
+function TheoremBlock({ t }) {
+  return (
+    <div style={{
+      padding: "10px 12px", borderLeft: "2px solid var(--s)",
+      background: "var(--surface-2)", borderRadius: "0 var(--r-sm) var(--r-sm) 0",
+    }}>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 3 }}>
+        <span className="mono" style={{ fontSize: 11, color: "var(--s)", fontWeight: 500 }}>Theorem {t.n}</span>
+        <span style={{ fontSize: "var(--fs-13)", fontWeight: 500 }}>{t.name}</span>
+      </div>
+      <div className="serif" style={{
+        fontFamily: "var(--font-serif)", fontSize: "var(--fs-13)",
+        color: "var(--ink-2)", lineHeight: 1.5,
+      }}>
+        {t.body}
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PROGRAMMING WORKSPACE — IDE/terminal-oriented
+// ═══════════════════════════════════════════════════════════════════════════
+function ProgWorkspace({ s }) {
+  const [tab, setTab] = useState("code");
+  const tabs = [
+    { id: "code",      label: "Lab workspace" },
+    { id: "lectures",  label: "Lectures", count: 11 },
+    { id: "concepts",  label: "Concepts", count: 47 },
+    { id: "psets",     label: "Problem sets", count: 7 },
+    { id: "snippets",  label: "Snippets", count: 124 },
+  ];
+
+  return (
+    <div data-subject={s.id}>
+      <SubjectHeader s={s} tabs={tabs} tab={tab} setTab={setTab} />
+      <div style={{ padding: "20px 32px 60px", maxWidth: 1400, margin: "0 auto" }}>
+        {/* IDE-style layout */}
+        <Card padded={false} style={{ overflow: "hidden", marginBottom: 16 }}>
+          {/* tab strip */}
+          <div style={{
+            display: "flex", alignItems: "center",
+            borderBottom: "1px solid var(--line)", background: "var(--surface-2)",
+            padding: "0 8px", height: 34,
+          }}>
+            {["rbtree.rs", "node.rs", "lec-13.md"].map((f, i) => (
+              <div key={f} style={{
+                display: "flex", alignItems: "center", gap: 6,
+                padding: "0 12px", height: "100%", fontSize: 12,
+                color: i === 0 ? "var(--ink)" : "var(--ink-3)",
+                background: i === 0 ? "var(--surface)" : "transparent",
+                borderRight: "1px solid var(--line)",
+                borderTop: i === 0 ? "2px solid var(--s)" : "2px solid transparent",
+              }}>
+                <span className="mono" style={{ fontSize: 11.5 }}>{f}</span>
+                {i === 0 && <span style={{
+                  width: 5, height: 5, borderRadius: "50%",
+                  background: "var(--warn)",
+                }} title="unsaved" />}
+              </div>
+            ))}
+            <div style={{ marginLeft: "auto", display: "flex", gap: 8, padding: "0 10px", fontSize: 11, color: "var(--ink-3)" }} className="mono">
+              <span>UTF-8</span><span>·</span><span>LF</span><span>·</span><span>rust 1.78</span>
+            </div>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "200px 1fr 340px", minHeight: 460 }}>
+            {/* Explorer */}
+            <div style={{
+              borderRight: "1px solid var(--line)", background: "var(--surface-2)",
+              padding: "10px 0",
+            }}>
+              <div className="label-xs" style={{ padding: "0 14px 6px" }}>Explorer</div>
+              {PROG_FILES.map((f, i) => (
+                <div key={i} style={{
+                  display: "flex", alignItems: "center", gap: 6,
+                  padding: `2.5px 14px 2.5px ${14 + f.depth * 12}px`,
+                  fontSize: 12, color: f.active ? "var(--ink)" : "var(--ink-2)",
+                  fontWeight: f.active ? 500 : 400,
+                  background: f.active ? "var(--s-soft)" : "transparent",
+                  borderLeft: f.active ? "2px solid var(--s)" : "2px solid transparent",
+                }} className="mono">
+                  {f.kind === "dir" ? "▸" : ""}
+                  <span style={{ flex: 1 }}>{f.path.trim() || f.path}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Editor */}
+            <div style={{ display: "flex", flexDirection: "column", background: "var(--surface)" }}>
+              <CodeBlock />
+              <Terminal />
+            </div>
+
+            {/* Right pane: concept */}
+            <div style={{
+              borderLeft: "1px solid var(--line)", background: "var(--surface)",
+              padding: "14px 16px", overflowY: "auto",
+            }}>
+              <div className="label-xs" style={{ marginBottom: 4 }}>Concept under study</div>
+              <div style={{ fontSize: "var(--fs-15)", fontWeight: 500, marginBottom: 10 }}>
+                §13.1 RB-tree properties
+              </div>
+              <div className="mono" style={{
+                fontSize: 11.5, color: "var(--ink-2)", lineHeight: 1.55,
+                padding: 10, background: "var(--code-bg)", borderRadius: "var(--r-sm)",
+                border: "1px solid var(--line)",
+              }}>
+{`invariants:
+  1. node.color ∈ {red, black}
+  2. root.color = black
+  3. nil.color  = black
+  4. red ⇒ children.color = black
+  5. ∀ path n → nil:
+       count(black) = bh(n)`}
+              </div>
+              <div style={{ marginTop: 12 }}>
+                <div className="label-xs" style={{ marginBottom: 6 }}>Linked notes</div>
+                {[
+                  { f: "lec-13.md", t: "Lecture notes" },
+                  { f: "amortized.md", t: "Amortized analysis primer" },
+                  { f: "CLRS-13.pdf", t: "Textbook chapter" },
+                ].map((l, i) => (
+                  <a key={i} style={{
+                    display: "flex", alignItems: "center", gap: 8, padding: "5px 0",
+                    fontSize: 12, color: "var(--ink-2)",
+                  }}>
+                    <span style={{ width: 12, height: 12, color: "var(--ink-3)" }}><Ic.Note /></span>
+                    <span style={{ flex: 1 }}>{l.t}</span>
+                    <span className="mono" style={{ fontSize: 10, color: "var(--ink-3)" }}>{l.f}</span>
+                  </a>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* status bar */}
+          <div style={{
+            display: "flex", alignItems: "center", gap: 14,
+            padding: "5px 14px", borderTop: "1px solid var(--line)",
+            background: "var(--s-soft)", color: "var(--s)",
+            fontSize: 11, fontWeight: 500,
+          }} className="mono">
+            <span>● main</span>
+            <span>+34 −12</span>
+            <span style={{ color: "var(--due)" }}>1 failing test</span>
+            <span style={{ marginLeft: "auto", color: "var(--ink-3)" }}>Ln 87, Col 14</span>
+            <span style={{ color: "var(--ink-3)" }}>Spaces: 4</span>
+          </div>
+        </Card>
+
+        {/* Concept rows */}
+        <SectionTitle kicker="This week's concepts" title="Chapter 13 — Red-black trees" />
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
+          {PROG_CONCEPTS.map(c => <ConceptCard key={c.n} c={c} />)}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CodeBlock() {
+  const lines = [
+    { n: 1,  s: "kw", t: "impl", e: " " , t2: "<K, V>", e2: " ", t3: "RbTree", e3: "<K, V> ", t4: "where", e4: " K: ", t5: "Ord", e5: " {" },
+    { n: 2 },
+    { n: 3,  s: "doc", t: "    /// Insert preserving all five invariants." },
+    { n: 4,  s: "kw",  t: "    pub fn", e: " insert", e2: "(&mut ", t2: "self", e3: ", k: K, v: V) -> ", t3: "Option", e4: "<V> {" },
+    { n: 5,  s: "txt", t: "        ", t2: "let", e: " mut ", t3: "node", e2: " = ", t4: "Self", e3: "::new_red(k, v);" },
+    { n: 6,  s: "txt", t: "        ", t2: "self", e: ".root = ", t3: "self", e2: ".bst_insert(node);" },
+    { n: 7,  s: "txt", t: "        ", t2: "self", e: ".fixup(&", t3: "node", e2: ");" },
+    { n: 8,  s: "txt", t: "        ", t2: "self", e: ".root.set_black();" },
+    { n: 9,  s: "kw",  t: "        None" },
+    { n: 10, s: "txt", t: "    }" },
+    { n: 11 },
+    { n: 12, s: "doc", t: "    /// Restore RB invariants after a red insertion." },
+    { n: 13, s: "kw",  t: "    fn", e: " fixup(&mut ", t2: "self", e2: ", n: ", t3: "&NodeRef", e3: "<K, V>) {" },
+    { n: 14, s: "kw",  t: "        while", e: " ", t2: "let Some", e2: "(p) = n.parent() ", t3: "&&", e3: " p.is_red() {" },
+    { n: 15, s: "comment", t: "            // case I — uncle red: recolor & ascend" },
+    { n: 16, s: "txt", t: "            ..." },
+    { n: 17, s: "txt", t: "        }" },
+    { n: 18, s: "txt", t: "    }" },
+    { n: 19, s: "txt", t: "}" },
+  ];
+  const color = (s) => ({
+    kw: "var(--accent)", doc: "var(--ok)", comment: "var(--ink-3)", txt: "var(--code-ink)", string: "var(--warn)",
+  }[s] || "var(--code-ink)");
+  return (
+    <div className="mono" style={{
+      padding: "12px 0", fontSize: 12.5, lineHeight: 1.6,
+      background: "var(--surface)", flex: 1, overflowX: "auto",
+    }}>
+      {lines.map((ln) => (
+        <div key={ln.n} style={{
+          display: "grid", gridTemplateColumns: "44px 1fr",
+          padding: "0", color: color(ln.s),
+          background: ln.n === 4 ? "color-mix(in oklch, var(--s-soft) 50%, transparent)" : "transparent",
+        }}>
+          <span style={{ textAlign: "right", paddingRight: 12, color: "var(--ink-4)", userSelect: "none", fontSize: 11 }}>
+            {ln.n}
+          </span>
+          <span style={{ whiteSpace: "pre", color: color(ln.s) }}>
+            {ln.t}
+            {ln.e   && <span style={{ color: "var(--code-ink)" }}>{ln.e}</span>}
+            {ln.t2  && <span style={{ color: color(ln.s === "kw" ? "txt" : ln.s) }}>{ln.t2}</span>}
+            {ln.e2  && <span style={{ color: "var(--code-ink)" }}>{ln.e2}</span>}
+            {ln.t3  && <span style={{ color: color(ln.s === "kw" ? "txt" : ln.s) }}>{ln.t3}</span>}
+            {ln.e3  && <span style={{ color: "var(--code-ink)" }}>{ln.e3}</span>}
+            {ln.t4  && <span style={{ color: color(ln.s === "kw" ? "txt" : ln.s) }}>{ln.t4}</span>}
+            {ln.e4  && <span style={{ color: "var(--code-ink)" }}>{ln.e4}</span>}
+            {ln.t5  && <span style={{ color: color(ln.s === "kw" ? "txt" : ln.s) }}>{ln.t5}</span>}
+            {ln.e5  && <span style={{ color: "var(--code-ink)" }}>{ln.e5}</span>}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function Terminal() {
+  return (
+    <div className="mono" style={{
+      borderTop: "1px solid var(--line)",
+      background: "var(--bg-sunken)", padding: "10px 14px",
+      fontSize: 11.5, lineHeight: 1.65, color: "var(--ink-2)",
+      height: 180, overflowY: "auto",
+    }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, color: "var(--ink-3)", fontSize: 10.5 }} className="label-xs">
+        <span style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--ok)" }} />
+        terminal · zsh
+      </div>
+      {PROG_TERMINAL.map((l, i) => (
+        <div key={i} style={{
+          color: l.kind === "prompt" ? "var(--ink)"
+                : l.kind === "ok" ? "var(--ok)"
+                : l.kind === "fail" ? "var(--due)"
+                : "var(--ink-2)",
+        }}>
+          {l.kind === "prompt" && <span style={{ color: "var(--s)" }}>~/algo-lab ❯ </span>}
+          {l.text}
+          {l.kind === "prompt" && i === PROG_TERMINAL.length - 1 && (
+            <span style={{ display: "inline-block", width: 6, height: 11, background: "var(--ink)", marginLeft: 2, verticalAlign: "middle", animation: "ll-caret 1s steps(2) infinite" }} />
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ConceptCard({ c }) {
+  return (
+    <Card style={{ padding: 0 }} accent>
+      <div style={{ padding: "12px 14px", borderBottom: "1px solid var(--line-soft)", display: "flex", alignItems: "center", gap: 8 }}>
+        <span className="mono" style={{ fontSize: 11, color: "var(--s)" }}>§{c.n}</span>
+        <span style={{ fontSize: "var(--fs-14)", fontWeight: 500 }}>{c.title}</span>
+      </div>
+      <div style={{ padding: "12px 14px", fontSize: "var(--fs-13)", color: "var(--ink-2)", lineHeight: 1.55 }}>
+        {c.body}
+      </div>
+    </Card>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// BIOLOGY WORKSPACE — diagram-heavy
+// ═══════════════════════════════════════════════════════════════════════════
+function BioWorkspace({ s }) {
+  const [tab, setTab] = useState("diagrams");
+  const tabs = [
+    { id: "diagrams", label: "Diagrams", count: 24 },
+    { id: "reading",  label: "Reading" },
+    { id: "lab",      label: "Lab notebook" },
+    { id: "cards",    label: "Flashcards", count: 612 },
+    { id: "glossary", label: "Glossary",   count: 287 },
+  ];
+  return (
+    <div data-subject={s.id}>
+      <SubjectHeader s={s} tabs={tabs} tab={tab} setTab={setTab} />
+      <div style={{ padding: "24px 32px 60px", maxWidth: 1400, margin: "0 auto" }}>
+        <SectionTitle kicker="Active unit" title="Unit 06 · Membrane transport"
+          action={<div style={{ display: "flex", gap: 6 }}>
+            <Pill subject={s.id} tone="subject">9 diagrams</Pill>
+            <Pill tone="warn">28 cards · 6 weak</Pill>
+          </div>}
+        />
+        {/* diagram gallery */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14 }}>
+          {BIO_DIAGRAMS.map((d, i) => <DiagramCard key={d.id} d={d} featured={i === 0} />)}
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1.6fr 1fr", gap: 16, marginTop: 24 }}>
+          <Card padded={false}>
+            <div style={{
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+              padding: "14px 18px", borderBottom: "1px solid var(--line)",
+            }}>
+              <div>
+                <div className="label-xs">Currently reading</div>
+                <div style={{ fontSize: "var(--fs-18)", fontWeight: 500, letterSpacing: "-0.01em" }}>
+                  Alberts — Molecular Biology of the Cell, Ch. 12
+                </div>
+              </div>
+              <Pill tone="neutral">p. 612 / 743</Pill>
+            </div>
+            <ReadingBlock />
+          </Card>
+
+          {/* glossary */}
+          <Card padded={false}>
+            <div style={{
+              padding: "14px 18px", borderBottom: "1px solid var(--line)",
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+            }}>
+              <div>
+                <div className="label-xs">Subject glossary</div>
+                <div style={{ fontSize: "var(--fs-18)", fontWeight: 500, letterSpacing: "-0.01em" }}>Key terms</div>
+              </div>
+              <Btn icon={Ic.Search} variant="ghost" style={{ padding: "4px 8px" }}> </Btn>
+            </div>
+            <div style={{ padding: "4px 0" }}>
+              {BIO_GLOSSARY.map((g, i) => (
+                <div key={g.term} style={{
+                  padding: "10px 18px", borderTop: i === 0 ? "none" : "1px solid var(--line-soft)",
+                }}>
+                  <div style={{ fontSize: "var(--fs-14)", fontWeight: 500, marginBottom: 3 }}>{g.term}</div>
+                  <div style={{ fontSize: "var(--fs-13)", color: "var(--ink-2)", lineHeight: 1.45 }}>{g.body}</div>
+                </div>
+              ))}
+            </div>
+          </Card>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DiagramCard({ d, featured }) {
+  return (
+    <Card style={{ padding: 0, gridColumn: featured ? "span 2" : "auto" }}>
+      <div style={{
+        height: featured ? 200 : 140, background: "var(--surface-2)",
+        borderBottom: "1px solid var(--line-soft)", position: "relative", overflow: "hidden",
+      }}>
+        <DiagramSvg id={d.id} />
+        <div style={{
+          position: "absolute", top: 10, left: 10,
+          display: "flex", gap: 6,
+        }}>
+          <Pill tone="neutral" style={{ background: "color-mix(in oklch, var(--surface) 80%, transparent)" }}>
+            {d.type}
+          </Pill>
+        </div>
+        <div style={{
+          position: "absolute", bottom: 8, right: 10,
+          fontSize: 10.5, color: "var(--ink-3)", padding: "2px 6px",
+          background: "color-mix(in oklch, var(--surface) 80%, transparent)",
+          borderRadius: 3,
+        }} className="mono">
+          {d.studied}/{d.parts} parts
+        </div>
+      </div>
+      <div style={{ padding: "10px 14px" }}>
+        <div style={{ fontSize: "var(--fs-14)", fontWeight: 500, marginBottom: 6 }}>{d.title}</div>
+        <div style={{ height: 3, background: "var(--line-soft)", borderRadius: 2, overflow: "hidden" }}>
+          <div style={{ width: `${(d.studied / d.parts) * 100}%`, height: "100%", background: "var(--s)" }} />
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+function DiagramSvg({ id }) {
+  // schematic placeholders — each subject diagram has its own visual grammar
+  const stroke = "var(--s)";
+  const soft = "var(--s-soft)";
+  if (id === "membrane") {
+    return (
+      <svg viewBox="0 0 400 200" style={{ width: "100%", height: "100%" }}>
+        <rect width="400" height="200" fill="var(--surface-2)"/>
+        {/* phospholipid bilayer */}
+        <g stroke={stroke} fill={soft} strokeWidth="1">
+          {Array.from({ length: 32 }).map((_, i) => (
+            <g key={i} transform={`translate(${i * 12 + 10}, 0)`}>
+              <circle cx="0" cy="74" r="5" />
+              <line x1="0" y1="79" x2="-2" y2="100" />
+              <line x1="0" y1="79" x2="2" y2="100" />
+              <line x1="0" y1="121" x2="-2" y2="100" />
+              <line x1="0" y1="121" x2="2" y2="100" />
+              <circle cx="0" cy="126" r="5" />
+            </g>
+          ))}
+        </g>
+        {/* embedded protein */}
+        <rect x="160" y="60" width="44" height="80" rx="6" fill={soft} stroke={stroke} strokeWidth="1.5"/>
+        <rect x="166" y="80" width="32" height="40" rx="3" fill="var(--surface)" stroke={stroke} strokeWidth="0.8"/>
+        {/* labels */}
+        <g fontFamily="monospace" fontSize="9" fill="var(--ink-3)">
+          <line x1="220" y1="100" x2="260" y2="100" stroke="var(--ink-3)" strokeDasharray="2 2"/>
+          <text x="264" y="103">channel protein</text>
+          <line x1="80" y1="50" x2="80" y2="65" stroke="var(--ink-3)" strokeDasharray="2 2"/>
+          <text x="60" y="44">hydrophilic head</text>
+          <line x1="80" y1="155" x2="80" y2="135" stroke="var(--ink-3)" strokeDasharray="2 2"/>
+          <text x="50" y="170">hydrophobic tail</text>
+        </g>
+      </svg>
+    );
+  }
+  if (id === "krebs") {
+    return (
+      <svg viewBox="0 0 240 140" style={{ width: "100%", height: "100%" }}>
+        <rect width="240" height="140" fill="var(--surface-2)"/>
+        <circle cx="120" cy="70" r="42" fill="none" stroke={stroke} strokeWidth="1.2" strokeDasharray="3 3"/>
+        {[0, 60, 120, 180, 240, 300].map((a, i) => {
+          const x = 120 + Math.cos((a - 90) * Math.PI / 180) * 42;
+          const y = 70 + Math.sin((a - 90) * Math.PI / 180) * 42;
+          return <circle key={i} cx={x} cy={y} r="6" fill={soft} stroke={stroke}/>;
+        })}
+        <text x="120" y="73" textAnchor="middle" fontFamily="serif" fontSize="11" fill="var(--ink-2)" fontStyle="italic">citric acid cycle</text>
+      </svg>
+    );
+  }
+  if (id === "ribosome") {
+    return (
+      <svg viewBox="0 0 240 140" style={{ width: "100%", height: "100%" }}>
+        <rect width="240" height="140" fill="var(--surface-2)"/>
+        <ellipse cx="120" cy="60" rx="50" ry="28" fill={soft} stroke={stroke}/>
+        <ellipse cx="120" cy="90" rx="60" ry="34" fill={soft} stroke={stroke}/>
+        <line x1="40" y1="78" x2="200" y2="78" stroke={stroke} strokeWidth="1"/>
+      </svg>
+    );
+  }
+  if (id === "mitosis") {
+    return (
+      <svg viewBox="0 0 240 140" style={{ width: "100%", height: "100%" }}>
+        <rect width="240" height="140" fill="var(--surface-2)"/>
+        {[0,1,2,3].map(i => (
+          <g key={i} transform={`translate(${30 + i*55}, 70)`}>
+            <circle r="22" fill="none" stroke={stroke}/>
+            {i < 2 && <path d={`M-8 0 Q 0 ${i===0?-12:-6} 8 0`} fill="none" stroke={stroke} strokeWidth="1.5"/>}
+            {i >= 2 && <g><circle cx="-10" cy="0" r="5" fill={soft} stroke={stroke}/><circle cx="10" cy="0" r="5" fill={soft} stroke={stroke}/></g>}
+          </g>
+        ))}
+      </svg>
+    );
+  }
+  if (id === "neuron") {
+    return (
+      <svg viewBox="0 0 240 140" style={{ width: "100%", height: "100%" }}>
+        <rect width="240" height="140" fill="var(--surface-2)"/>
+        <circle cx="50" cy="70" r="20" fill={soft} stroke={stroke}/>
+        {[0,45,90,135,180,225,315].map(a => {
+          const x = 50 + Math.cos(a*Math.PI/180) * 28;
+          const y = 70 + Math.sin(a*Math.PI/180) * 28;
+          return <line key={a} x1="50" y1="70" x2={x} y2={y} stroke={stroke} strokeWidth="1.2"/>;
+        })}
+        <line x1="70" y1="70" x2="210" y2="70" stroke={stroke} strokeWidth="2"/>
+        {[100, 130, 160, 190].map(x => <ellipse key={x} cx={x} cy={70} rx="10" ry="6" fill={soft} stroke={stroke}/>)}
+        <circle cx="210" cy="70" r="3" fill={stroke}/>
+      </svg>
+    );
+  }
+  if (id === "transcription") {
+    return (
+      <svg viewBox="0 0 240 140" style={{ width: "100%", height: "100%" }}>
+        <rect width="240" height="140" fill="var(--surface-2)"/>
+        <line x1="20" y1="60" x2="220" y2="60" stroke={stroke} strokeWidth="1.5"/>
+        <line x1="20" y1="80" x2="220" y2="80" stroke={stroke} strokeWidth="1.5"/>
+        {Array.from({length: 20}).map((_,i) => <line key={i} x1={25+i*10} y1="60" x2={25+i*10} y2="80" stroke={stroke} strokeWidth="0.5"/>)}
+        <ellipse cx="120" cy="70" rx="36" ry="22" fill={soft} stroke={stroke} strokeWidth="1.5"/>
+        <path d="M 120 92 Q 140 110, 180 110" fill="none" stroke={stroke} strokeWidth="1.5"/>
+      </svg>
+    );
+  }
+  return null;
+}
+
+function ReadingBlock() {
+  const para = `Membrane transport proteins fall into two large classes: transporters and channels. Transporters bind specific solutes and undergo a series of conformational changes that alternately expose the solute-binding site on opposite sides of the lipid bilayer. Channels, by contrast, form continuous protein-lined pores that, when open, allow specific ions to flow across the membrane at rates approaching those of free diffusion.`;
+  return (
+    <div style={{ padding: "18px 22px 20px", display: "grid", gridTemplateColumns: "1fr 200px", gap: 18 }}>
+      <div className="serif" style={{
+        fontFamily: "var(--font-serif)", fontSize: 16, lineHeight: 1.65,
+        color: "var(--ink)", textWrap: "pretty",
+      }}>
+        <p style={{ marginBottom: 12 }}>{para}</p>
+        <p style={{ marginBottom: 12, color: "var(--ink-2)" }}>
+          The {" "}
+          <mark style={{ background: "var(--s-soft)", color: "var(--ink)", padding: "0 3px", borderBottom: "1px solid var(--s)" }}>
+            sodium gradient
+          </mark>{" "}
+          across the plasma membrane is generated and maintained by the Na⁺/K⁺ ATPase pump, which uses ATP hydrolysis to drive Na⁺ out of the cell and K⁺ in against their electrochemical gradients.
+        </p>
+        <p style={{ color: "var(--ink-2)" }}>
+          This stored energy is then harvested by{" "}
+          <mark style={{ background: "color-mix(in oklch, var(--warn) 12%, transparent)", padding: "0 3px" }}>
+            symporters
+          </mark>{" "}
+          and antiporters to move other solutes — sugars, amino acids, neurotransmitters — across the membrane.
+        </p>
+      </div>
+      <div style={{ borderLeft: "1px solid var(--line)", paddingLeft: 14 }}>
+        <div className="label-xs" style={{ marginBottom: 8 }}>Annotations · 2</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <div style={{ padding: "8px 10px", background: "var(--s-soft)", borderRadius: "var(--r-sm)", border: "1px solid var(--s-line)" }}>
+            <div style={{ fontSize: 11, color: "var(--s)", fontWeight: 500, marginBottom: 2 }}>thesis</div>
+            <div style={{ fontSize: 12, color: "var(--ink-2)" }}>Two-class taxonomy — likely exam definition.</div>
+          </div>
+          <div style={{ padding: "8px 10px", background: "var(--warn-soft)", borderRadius: "var(--r-sm)", border: "1px solid color-mix(in oklch, var(--warn) 30%, var(--line))" }}>
+            <div style={{ fontSize: 11, color: "var(--warn)", fontWeight: 500, marginBottom: 2 }}>review</div>
+            <div style={{ fontSize: 12, color: "var(--ink-2)" }}>Cross-check antiport vs symport — fuzzy.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// LITERATURE WORKSPACE — reading/annotation-centric
+// ═══════════════════════════════════════════════════════════════════════════
+function LitWorkspace({ s }) {
+  const [tab, setTab] = useState("text");
+  const tabs = [
+    { id: "text",     label: "Text" },
+    { id: "essay",    label: "Essay draft" },
+    { id: "themes",   label: "Themes", count: 7 },
+    { id: "context",  label: "Historical context" },
+    { id: "lectures", label: "Lectures", count: 9 },
+  ];
+
+  return (
+    <div data-subject={s.id}>
+      <SubjectHeader s={s} tabs={tabs} tab={tab} setTab={setTab} />
+      <div style={{ padding: "24px 32px 60px", maxWidth: 1400, margin: "0 auto" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "200px 1fr 320px", gap: 18 }}>
+          {/* Left: outline */}
+          <div>
+            <div className="label-xs" style={{ marginBottom: 8 }}>Mrs Dalloway</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+              {[
+                { p: "p. 3",   t: "Opening — Bond St.",  active: true },
+                { p: "p. 47",  t: "Septimus in park" },
+                { p: "p. 88",  t: "Peter Walsh returns" },
+                { p: "p. 132", t: "Bourton recollection" },
+                { p: "p. 165", t: "Septimus' suicide" },
+                { p: "p. 201", t: "Party scene" },
+              ].map(o => (
+                <button key={o.p} style={{
+                  textAlign: "left", padding: "6px 10px", borderRadius: 4,
+                  background: o.active ? "var(--s-soft)" : "transparent",
+                  color: o.active ? "var(--ink)" : "var(--ink-2)",
+                  fontSize: "var(--fs-13)", fontWeight: o.active ? 500 : 400,
+                  borderLeft: o.active ? "2px solid var(--s)" : "2px solid transparent",
+                }}>
+                  <span className="mono" style={{ fontSize: 10.5, color: "var(--ink-3)", marginRight: 6 }}>{o.p}</span>
+                  {o.t}
+                </button>
+              ))}
+            </div>
+
+            <div className="label-xs" style={{ marginTop: 22, marginBottom: 8 }}>Highlight legend</div>
+            {[
+              { c: "var(--s)",      l: "thesis · §1" },
+              { c: "var(--warn)",   l: "image / motif" },
+              { c: "var(--accent)", l: "voice / style" },
+              { c: "var(--ink-3)",  l: "context note" },
+            ].map(g => (
+              <div key={g.l} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--ink-2)", padding: "4px 0" }}>
+                <span style={{ width: 12, height: 4, background: g.c, borderRadius: 1 }} />
+                {g.l}
+              </div>
+            ))}
+          </div>
+
+          {/* Center: passage */}
+          <Card padded={false}>
+            <div style={{
+              padding: "14px 22px", borderBottom: "1px solid var(--line)",
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+            }}>
+              <div className="serif" style={{ fontFamily: "var(--font-serif)", fontStyle: "italic", color: "var(--ink-2)" }}>
+                Mrs Dalloway · Hogarth Press, 1925 · pp. 3–4
+              </div>
+              <div style={{ display: "flex", gap: 6 }}>
+                <Btn icon={Ic.Bookmark} variant="ghost">Annotate</Btn>
+                <Btn icon={Ic.Sparkle} variant="ghost">Define</Btn>
+              </div>
+            </div>
+            <div style={{ padding: "32px 56px 40px" }}>
+              <div className="serif" style={{
+                fontFamily: "var(--font-serif)", fontSize: 18, lineHeight: 1.85,
+                color: "var(--ink)", textWrap: "pretty", maxWidth: 540, margin: "0 auto",
+              }}>
+                {LIT_PASSAGE.map((line, i) => {
+                  const anno = LIT_ANNOTATIONS.find(a => a.line === i);
+                  const colors = {
+                    thesis: { bg: "var(--s-soft)", b: "var(--s)" },
+                    image:  { bg: "color-mix(in oklch, var(--warn) 14%, transparent)", b: "var(--warn)" },
+                    voice:  { bg: "var(--accent-soft)", b: "var(--accent)" },
+                  };
+                  if (!anno) return <p key={i} style={{ marginBottom: 14 }}>{line}</p>;
+                  const c = colors[anno.color] || colors.thesis;
+                  return (
+                    <p key={i} style={{
+                      marginBottom: 14,
+                      background: c.bg,
+                      borderLeft: `3px solid ${c.b}`,
+                      padding: "6px 14px",
+                      borderRadius: "0 4px 4px 0",
+                      marginLeft: -14,
+                    }}>{line}</p>
+                  );
+                })}
+              </div>
+            </div>
+          </Card>
+
+          {/* Right: annotations + thesis */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            <Card padded={false}>
+              <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--line)" }}>
+                <div className="label-xs">Working thesis</div>
+                <div style={{ fontSize: "var(--fs-14)", fontWeight: 500, marginTop: 4 }}>The fragmented self</div>
+              </div>
+              <div style={{ padding: "12px 16px" }} className="serif">
+                <p style={{ fontFamily: "var(--font-serif)", fontSize: 14, color: "var(--ink-2)", lineHeight: 1.55, fontStyle: "italic" }}>
+                  Woolf's free indirect style braids consciousness with the urban exterior so that the self — &#x201C;Clarissa Dalloway&#x201D; — emerges as a chain of plunges across the threshold of interior and world.
+                </p>
+                <div style={{ marginTop: 10, fontSize: 11, color: "var(--ink-3)" }} className="mono">
+                  Last edited 14:02 · 1,247 / 1,500 words
+                </div>
+              </div>
+            </Card>
+
+            <Card padded={false}>
+              <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--line)" }}>
+                <div className="label-xs">Annotations · this passage</div>
+              </div>
+              <div>
+                {LIT_ANNOTATIONS.map((a, i) => {
+                  const meta = {
+                    thesis: { c: "var(--s)",     l: "Thesis" },
+                    image:  { c: "var(--warn)",  l: "Image" },
+                    voice:  { c: "var(--accent)",l: "Voice" },
+                  }[a.color];
+                  return (
+                    <div key={i} style={{
+                      padding: "10px 16px",
+                      borderTop: i === 0 ? "none" : "1px solid var(--line-soft)",
+                    }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 3 }}>
+                        <span style={{ width: 7, height: 7, borderRadius: 2, background: meta.c }} />
+                        <span style={{ fontSize: 11, color: meta.c, fontWeight: 500 }}>{meta.l}</span>
+                        <span className="mono" style={{ fontSize: 10.5, color: "var(--ink-3)" }}>·line {a.line + 1}</span>
+                      </div>
+                      <div className="serif" style={{ fontFamily: "var(--font-serif)", fontSize: 13, color: "var(--ink-2)", lineHeight: 1.45 }}>
+                        {a.note}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </Card>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// GENERIC (phys, chem, hist) — uses dashboard-style layout
+// ═══════════════════════════════════════════════════════════════════════════
+function GenericSubject({ s }) {
+  const [tab, setTab] = useState("notes");
+  const tabs = [
+    { id: "notes",      label: "Notes" },
+    { id: "lectures",   label: "Lectures" },
+    { id: "problems",   label: "Practice" },
+    { id: "resources",  label: "Resources" },
+  ];
+  return (
+    <div data-subject={s.id}>
+      <SubjectHeader s={s} tabs={tabs} tab={tab} setTab={setTab} />
+      <div style={{ padding: "24px 32px 60px", maxWidth: 1400, margin: "0 auto" }}>
+        <div style={{
+          padding: 32, border: "1px dashed var(--line)", borderRadius: "var(--r-lg)",
+          textAlign: "center", color: "var(--ink-3)",
+        }}>
+          <div className="label-xs" style={{ marginBottom: 8 }}>workspace</div>
+          <div style={{ fontSize: "var(--fs-15)", color: "var(--ink-2)" }}>
+            {s.name} workspace placeholder — open Mathematics, Programming, Biology, or Literature for the differentiated layouts.
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Subject router
+function SubjectRouter({ id }) {
+  const s = SUBJECTS.find(x => x.id === id);
+  if (!s) return null;
+  if (s.id === "math") return <MathWorkspace s={s} />;
+  if (s.id === "prog") return <ProgWorkspace s={s} />;
+  if (s.id === "bio")  return <BioWorkspace s={s} />;
+  if (s.id === "lit")  return <LitWorkspace s={s} />;
+  return <GenericSubject s={s} />;
+}
+
+export {
+  SubjectRouter,
+  MathWorkspace,
+  ProgWorkspace,
+  BioWorkspace,
+  LitWorkspace,
+};

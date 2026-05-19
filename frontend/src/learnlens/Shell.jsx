@@ -1,0 +1,424 @@
+import React, { useState, useEffect, useRef, useMemo } from "react";
+
+// ── Icons — tiny inline strokes, 16px viewbox 24 ────────────────────────────
+const Ic = {
+  Home:  () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M3 11.5 12 4l9 7.5"/><path d="M5 10v9h14v-9"/></svg>,
+  Books: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h7v16H4z"/><path d="M11 4h6l3 16h-9"/></svg>,
+  Cal:   () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>,
+  Chart: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M4 20V8M10 20V4M16 20v-7M22 20H2"/></svg>,
+  Search:() => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>,
+  Inbox: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M3 13v6a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-6"/><path d="m3 13 3-8h12l3 8"/><path d="M3 13h5l1 3h6l1-3h5"/></svg>,
+  Bell:  () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 8 3 8H3s3-1 3-8"/><path d="M10 21a2 2 0 0 0 4 0"/></svg>,
+  Plus:  () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M12 5v14M5 12h14"/></svg>,
+  Sun:   () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4 12H2M22 12h-2M5 5l1.5 1.5M17.5 17.5 19 19M5 19l1.5-1.5M17.5 6.5 19 5"/></svg>,
+  Moon:  () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M21 13A9 9 0 1 1 11 3a7 7 0 0 0 10 10z"/></svg>,
+  Check: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m5 12 5 5L20 7"/></svg>,
+  Dot:   () => <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="3"/></svg>,
+  Pdf:   () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/><text x="7" y="17" fontSize="5" fontFamily="monospace" fill="currentColor" stroke="none">PDF</text></svg>,
+  Video: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="6" width="14" height="12" rx="2"/><path d="m21 8-4 4 4 4z"/></svg>,
+  Code:  () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="m8 8-4 4 4 4M16 8l4 4-4 4M14 4l-4 16"/></svg>,
+  Note:  () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M5 3h11l4 4v14H5z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg>,
+  Card:  () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="7" width="14" height="13" rx="2"/><rect x="7" y="4" width="14" height="13" rx="2"/></svg>,
+  Quiz:  () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .8-1 1.7"/><circle cx="12" cy="17" r=".5" fill="currentColor"/></svg>,
+  Beaker:() => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M9 3h6v5l5 11a2 2 0 0 1-2 3H6a2 2 0 0 1-2-3l5-11z"/><path d="M7.5 14h9"/></svg>,
+  Atom:  () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><circle cx="12" cy="12" r="2"/><ellipse cx="12" cy="12" rx="10" ry="4"/><ellipse cx="12" cy="12" rx="10" ry="4" transform="rotate(60 12 12)"/><ellipse cx="12" cy="12" rx="10" ry="4" transform="rotate(120 12 12)"/></svg>,
+  Sigma: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M18 5H6l6 7-6 7h12"/></svg>,
+  Cell:  () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><circle cx="9" cy="9" r=".8" fill="currentColor"/><circle cx="15" cy="14" r=".8" fill="currentColor"/></svg>,
+  Quill: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M4 20s4-2 8-6 6-9 6-9-7 2-11 6-3 9-3 9z"/><path d="M4 20s4 0 8-4"/></svg>,
+  Globe: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"><circle cx="12" cy="12" r="9"/><ellipse cx="12" cy="12" rx="4" ry="9"/><path d="M3 12h18"/></svg>,
+  Chev:  () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 6 6 6-6 6"/></svg>,
+  ChevD: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>,
+  Cmd:   () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M9 6a3 3 0 1 0-3 3h3zM15 6a3 3 0 1 1 3 3h-3zM9 18a3 3 0 1 1-3-3h3zM15 18a3 3 0 1 0 3-3h-3z"/><rect x="9" y="9" width="6" height="6"/></svg>,
+  Flame: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round"><path d="M12 3s5 4 5 9a5 5 0 1 1-10 0c0-2 1-3 2-4 0 2 1 3 2 3-1-3 1-6 1-8z"/></svg>,
+  Timer: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2M9 2h6M19 5l-1.5 1.5"/></svg>,
+  Filter:() => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M3 5h18l-7 9v6l-4-2v-4z"/></svg>,
+  Bookmark: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M6 3h12v18l-6-4-6 4z"/></svg>,
+  Sparkle: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v6M12 15v6M3 12h6M15 12h6M6 6l3 3M15 15l3 3M6 18l3-3M15 9l3-3"/></svg>,
+};
+
+const SUBJECT_ICONS = {
+  math: Ic.Sigma, prog: Ic.Code, bio: Ic.Cell, chem: Ic.Beaker,
+  lit: Ic.Quill, phys: Ic.Atom, hist: Ic.Globe,
+};
+
+// ── Sidebar ─────────────────────────────────────────────────────────────────
+function Sidebar({ route, setRoute, subjects, workflow, setWorkflow, extraNav = [] }) {
+  const [openSubjects, setOpen] = useState(true);
+
+  const NavItem = ({ id, icon: I, label, badge }) => {
+    const active = route.view === id;
+    return (
+      <button
+        onClick={() => setRoute({ view: id })}
+        style={{
+          display: "flex", alignItems: "center", gap: 10, width: "100%",
+          padding: "7px 10px", borderRadius: "var(--r)",
+          color: active ? "var(--ink)" : "var(--ink-2)",
+          background: active ? "var(--surface-2)" : "transparent",
+          fontSize: "var(--fs-14)", fontWeight: active ? 500 : 400,
+          transition: "background 120ms",
+        }}
+        onMouseEnter={e => !active && (e.currentTarget.style.background = "var(--surface-2)")}
+        onMouseLeave={e => !active && (e.currentTarget.style.background = "transparent")}
+      >
+        <span style={{ width: 16, height: 16, color: active ? "var(--accent)" : "var(--ink-3)" }}><I /></span>
+        <span style={{ flex: 1, textAlign: "left" }}>{label}</span>
+        {badge && <span className="mono" style={{ fontSize: 10.5, color: "var(--ink-3)" }}>{badge}</span>}
+      </button>
+    );
+  };
+
+  const SubjectItem = ({ s }) => {
+    const SI = SUBJECT_ICONS[s.id];
+    const active = route.view === "subject" && route.id === s.id;
+    return (
+      <button
+        data-subject={s.id}
+        onClick={() => setRoute({ view: "subject", id: s.id })}
+        style={{
+          display: "flex", alignItems: "center", gap: 10, width: "100%",
+          padding: "6px 10px 6px 22px", borderRadius: "var(--r)",
+          color: active ? "var(--ink)" : "var(--ink-2)",
+          background: active ? "var(--surface-2)" : "transparent",
+          fontSize: "var(--fs-14)", fontWeight: active ? 500 : 400,
+          position: "relative",
+        }}
+        onMouseEnter={e => !active && (e.currentTarget.style.background = "var(--surface-2)")}
+        onMouseLeave={e => !active && (e.currentTarget.style.background = "transparent")}
+      >
+        <span style={{
+          position: "absolute", left: 10, top: 6, bottom: 6, width: 3,
+          background: active ? "var(--s)" : "transparent", borderRadius: 2,
+        }} />
+        <span style={{ width: 14, height: 14, color: "var(--s)" }}><SI /></span>
+        <span style={{ flex: 1, textAlign: "left" }}>{s.name}</span>
+        <span className="mono tabular" style={{ fontSize: 10.5, color: "var(--ink-3)" }}>{s.progress}%</span>
+      </button>
+    );
+  };
+
+  return (
+    <aside style={{
+      width: "var(--rail-w)", borderRight: "1px solid var(--line)",
+      background: "var(--rail)", display: "flex", flexDirection: "column",
+      flexShrink: 0, height: "100%",
+    }}>
+      <div style={{ padding: "14px 14px 12px", display: "flex", alignItems: "center", gap: 9 }}>
+        <span style={{
+          width: 24, height: 24, borderRadius: 6, background: "var(--ink)",
+          display: "grid", placeItems: "center", color: "var(--bg)",
+          fontFamily: "var(--font-serif)", fontWeight: 600, fontSize: 14,
+        }}>L</span>
+        <div style={{ lineHeight: 1.1 }}>
+          <div style={{ fontWeight: 600, fontSize: "var(--fs-15)", letterSpacing: "-0.01em" }}>LearnLens</div>
+          <div className="mono" style={{ fontSize: 10, color: "var(--ink-3)" }}>academic.os · v3</div>
+        </div>
+      </div>
+
+      <div style={{ padding: "0 10px 6px" }}>
+        <div style={{
+          display: "flex", alignItems: "center", gap: 6,
+          padding: "6px 10px", borderRadius: "var(--r)",
+          background: "var(--surface)", border: "1px solid var(--line)",
+          color: "var(--ink-3)", fontSize: "var(--fs-13)",
+        }}>
+          <span style={{ width: 14, height: 14 }}><Ic.Search /></span>
+          <span style={{ flex: 1 }}>Jump to…</span>
+          <span className="mono" style={{ fontSize: 10, padding: "1px 5px", border: "1px solid var(--line)", borderRadius: 3 }}>⌘K</span>
+        </div>
+      </div>
+
+      <nav style={{ padding: "8px 10px", display: "flex", flexDirection: "column", gap: 1 }}>
+        <NavItem id="dashboard" icon={Ic.Home} label="Today" />
+        <NavItem id="inbox"     icon={Ic.Inbox} label="Inbox" badge="3" />
+        <NavItem id="library"   icon={Ic.Books} label="Library" />
+        <NavItem id="calendar"  icon={Ic.Cal} label="Calendar" />
+        <NavItem id="analytics" icon={Ic.Chart} label="Analytics" />
+        {extraNav.length > 0 && (
+          <div style={{ height: 1, background: "var(--line-soft)", margin: "8px 4px" }} />
+        )}
+        {extraNav.map(item => (
+          <NavItem key={item.id} id={item.id} icon={item.icon} label={item.label} badge={item.badge} />
+        ))}
+      </nav>
+
+      <div style={{ padding: "12px 14px 4px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <button onClick={() => setOpen(o => !o)} style={{
+          display: "flex", alignItems: "center", gap: 4, color: "var(--ink-3)",
+          fontSize: 10.5, letterSpacing: "0.08em", textTransform: "uppercase", fontWeight: 500,
+        }}>
+          <span style={{ width: 10, height: 10, transform: openSubjects ? "rotate(90deg)" : "none", transition: "transform 120ms" }}><Ic.Chev /></span>
+          Subjects
+        </button>
+        <button style={{ color: "var(--ink-3)", width: 14, height: 14 }}><Ic.Plus /></button>
+      </div>
+
+      {openSubjects && (
+        <div style={{ padding: "2px 10px", display: "flex", flexDirection: "column", gap: 1 }}>
+          {subjects.map(s => <SubjectItem key={s.id} s={s} />)}
+        </div>
+      )}
+
+      <div style={{ marginTop: "auto", padding: "12px 14px", borderTop: "1px solid var(--line)" }}>
+        <div className="label-xs" style={{ marginBottom: 8 }}>Workflow</div>
+        <WorkflowSwitch value={workflow} onChange={setWorkflow} />
+
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 14 }}>
+          <div style={{
+            width: 28, height: 28, borderRadius: "50%", background: "var(--surface-3)",
+            display: "grid", placeItems: "center", color: "var(--ink-2)",
+            fontWeight: 500, fontSize: 12,
+          }}>EM</div>
+          <div style={{ lineHeight: 1.2, flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: "var(--fs-13)", fontWeight: 500 }}>Eleanor M.</div>
+            <div style={{ fontSize: 11, color: "var(--ink-3)" }}>Year 3 · Hilary term</div>
+          </div>
+        </div>
+      </div>
+    </aside>
+  );
+}
+
+const WORKFLOWS = [
+  { id: "study",   label: "Deep study",  hint: "Reading focus, longer sessions" },
+  { id: "rev",     label: "Revision",    hint: "Recall, summaries, spaced reps" },
+  { id: "exam",    label: "Exam prep",   hint: "Timer, PYQs, weak-area drills" },
+  { id: "quick",   label: "Quick practice", hint: "10-min sprints" },
+];
+function WorkflowSwitch({ value, onChange }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+      {WORKFLOWS.map(w => {
+        const active = value === w.id;
+        return (
+          <button key={w.id} onClick={() => onChange(w.id)} style={{
+            display: "flex", alignItems: "center", gap: 8, padding: "5px 8px",
+            borderRadius: "var(--r-sm)",
+            background: active ? "var(--accent-soft)" : "transparent",
+            color: active ? "var(--accent)" : "var(--ink-2)",
+            fontSize: "var(--fs-13)", fontWeight: active ? 500 : 400,
+            textAlign: "left",
+          }}>
+            <span style={{
+              width: 6, height: 6, borderRadius: "50%",
+              background: active ? "var(--accent)" : "var(--line-strong)",
+            }} />
+            {w.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── Top bar ────────────────────────────────────────────────────────────────
+function TopBar({ crumbs, right, theme, setTheme, onCmd }) {
+  return (
+    <header style={{
+      height: "var(--top-h)", borderBottom: "1px solid var(--line)",
+      background: "color-mix(in oklch, var(--bg) 92%, transparent)",
+      backdropFilter: "blur(8px)",
+      display: "flex", alignItems: "center", padding: "0 18px", gap: 14,
+      position: "sticky", top: 0, zIndex: 30,
+    }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, flex: 1, minWidth: 0 }}>
+        {crumbs.map((c, i) => (
+          <React.Fragment key={i}>
+            {i > 0 && <span style={{ color: "var(--ink-4)", fontSize: 12 }}>/</span>}
+            <span style={{
+              fontSize: "var(--fs-14)",
+              color: i === crumbs.length - 1 ? "var(--ink)" : "var(--ink-3)",
+              fontWeight: i === crumbs.length - 1 ? 500 : 400,
+              display: "flex", alignItems: "center", gap: 6,
+            }}>
+              {c.icon && <span style={{ width: 14, height: 14, color: c.color || "var(--ink-3)" }}><c.icon /></span>}
+              {c.label}
+            </span>
+          </React.Fragment>
+        ))}
+      </div>
+
+      {right}
+
+      <button onClick={onCmd} style={{
+        display: "flex", alignItems: "center", gap: 8, padding: "5px 10px 5px 8px",
+        border: "1px solid var(--line)", borderRadius: "var(--r-sm)",
+        background: "var(--surface)", color: "var(--ink-3)", fontSize: "var(--fs-13)",
+      }}>
+        <span style={{ width: 13, height: 13 }}><Ic.Search /></span>
+        Search anything
+        <span className="mono" style={{ fontSize: 10, padding: "1px 5px", border: "1px solid var(--line)", borderRadius: 3 }}>⌘K</span>
+      </button>
+
+      <button onClick={() => setTheme(theme === "light" ? "dark" : "light")} style={{
+        width: 30, height: 30, display: "grid", placeItems: "center",
+        borderRadius: "var(--r-sm)", color: "var(--ink-2)",
+      }} title="Toggle theme">
+        <span style={{ width: 15, height: 15 }}>{theme === "light" ? <Ic.Moon /> : <Ic.Sun />}</span>
+      </button>
+
+      <button style={{
+        width: 30, height: 30, display: "grid", placeItems: "center",
+        borderRadius: "var(--r-sm)", color: "var(--ink-2)", position: "relative",
+      }}>
+        <span style={{ width: 15, height: 15 }}><Ic.Bell /></span>
+        <span style={{
+          position: "absolute", top: 6, right: 6, width: 6, height: 6,
+          borderRadius: "50%", background: "var(--due)",
+        }} />
+      </button>
+    </header>
+  );
+}
+
+// ── Command palette ────────────────────────────────────────────────────────
+function CommandBar({ open, onClose, subjects, setRoute }) {
+  const [q, setQ] = useState("");
+  const ref = useRef(null);
+  useEffect(() => { if (open) setTimeout(() => ref.current?.focus(), 30); }, [open]);
+
+  const items = useMemo(() => {
+    const base = [
+      ...subjects.map(s => ({ kind: "Subject", label: s.name, hint: s.title, action: () => setRoute({ view: "subject", id: s.id }) })),
+      { kind: "View", label: "Today",     hint: "Dashboard",  action: () => setRoute({ view: "dashboard" }) },
+      { kind: "View", label: "Library",   hint: "All resources", action: () => setRoute({ view: "library" }) },
+      { kind: "View", label: "Calendar",  hint: "Week & term", action: () => setRoute({ view: "calendar" }) },
+      { kind: "Action", label: "Start 25-min focus", hint: "Pomodoro · current subject" },
+      { kind: "Action", label: "New annotation",     hint: "Highlight selected passage" },
+      { kind: "Action", label: "Generate quiz",      hint: "From current notes" },
+    ];
+    if (!q) return base.slice(0, 8);
+    return base.filter(i => (i.label + i.hint).toLowerCase().includes(q.toLowerCase())).slice(0, 8);
+  }, [q, subjects, setRoute]);
+
+  if (!open) return null;
+
+  return (
+    <div onClick={onClose} style={{
+      position: "fixed", inset: 0, background: "color-mix(in oklch, var(--bg) 60%, black 40%)",
+      backdropFilter: "blur(4px)", zIndex: 100,
+      display: "flex", alignItems: "flex-start", justifyContent: "center",
+      paddingTop: "12vh",
+    }}>
+      <div onClick={e => e.stopPropagation()} style={{
+        width: 560, background: "var(--surface)", border: "1px solid var(--line)",
+        borderRadius: "var(--r-lg)", boxShadow: "var(--shadow-lg)", overflow: "hidden",
+        animation: "ll-fade-in 160ms ease",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", borderBottom: "1px solid var(--line)" }}>
+          <span style={{ width: 16, height: 16, color: "var(--ink-3)" }}><Ic.Search /></span>
+          <input ref={ref} value={q} onChange={e => setQ(e.target.value)}
+            placeholder="Search subjects, resources, theorems, files…"
+            style={{ flex: 1, background: "none", border: 0, outline: "none", fontSize: "var(--fs-15)" }} />
+          <span className="mono" style={{ fontSize: 10.5, color: "var(--ink-3)" }}>ESC</span>
+        </div>
+        <div style={{ padding: "8px 0", maxHeight: 380, overflowY: "auto" }}>
+          {items.map((it, i) => (
+            <button key={i} onClick={() => { it.action?.(); onClose(); }}
+              style={{
+                display: "flex", alignItems: "center", gap: 12, width: "100%",
+                padding: "8px 16px", textAlign: "left",
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = "var(--surface-2)"}
+              onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+              <span className="mono" style={{
+                fontSize: 10, padding: "2px 6px", borderRadius: 3,
+                background: "var(--surface-2)", color: "var(--ink-3)", minWidth: 56, textAlign: "center",
+              }}>{it.kind}</span>
+              <span style={{ fontSize: "var(--fs-14)", fontWeight: 500 }}>{it.label}</span>
+              <span style={{ fontSize: "var(--fs-13)", color: "var(--ink-3)", flex: 1 }}>{it.hint}</span>
+              <span style={{ width: 12, height: 12, color: "var(--ink-4)" }}><Ic.Chev /></span>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Tiny primitives ───────────────────────────────────────────────────────
+function Pill({ children, tone = "neutral", subject, style }) {
+  const map = {
+    neutral: { bg: "var(--surface-2)", c: "var(--ink-2)", b: "var(--line)" },
+    accent:  { bg: "var(--accent-soft)", c: "var(--accent)", b: "var(--accent-line)" },
+    ok:      { bg: "var(--ok-soft)", c: "var(--ok)", b: "color-mix(in oklch, var(--ok) 30%, var(--line))" },
+    warn:    { bg: "var(--warn-soft)", c: "var(--warn)", b: "color-mix(in oklch, var(--warn) 30%, var(--line))" },
+    due:     { bg: "var(--due-soft)", c: "var(--due)", b: "color-mix(in oklch, var(--due) 30%, var(--line))" },
+    subject: { bg: "var(--s-soft)", c: "var(--s)", b: "var(--s-line)" },
+  };
+  const t = map[tone] || map.neutral;
+  return (
+    <span data-subject={subject} style={{
+      display: "inline-flex", alignItems: "center", gap: 4,
+      fontSize: 10.5, fontWeight: 500, letterSpacing: "0.02em",
+      padding: "1.5px 7px", borderRadius: 100,
+      background: t.bg, color: t.c, border: `1px solid ${t.b}`,
+      ...style,
+    }}>{children}</span>
+  );
+}
+
+function Btn({ children, variant = "default", icon: I, onClick, style }) {
+  const map = {
+    default: { bg: "var(--surface)", c: "var(--ink)", b: "var(--line)" },
+    primary: { bg: "var(--ink)", c: "var(--bg)", b: "var(--ink)" },
+    accent:  { bg: "var(--accent)", c: "var(--on-accent)", b: "var(--accent)" },
+    ghost:   { bg: "transparent", c: "var(--ink-2)", b: "transparent" },
+  };
+  const t = map[variant];
+  return (
+    <button onClick={onClick} style={{
+      display: "inline-flex", alignItems: "center", gap: 7,
+      padding: "6px 11px", borderRadius: "var(--r-sm)",
+      background: t.bg, color: t.c, border: `1px solid ${t.b}`,
+      fontSize: "var(--fs-13)", fontWeight: 500,
+      transition: "all 120ms", ...style,
+    }}
+      onMouseEnter={e => {
+        if (variant === "default" || variant === "ghost") e.currentTarget.style.background = "var(--surface-2)";
+      }}
+      onMouseLeave={e => { e.currentTarget.style.background = t.bg; }}>
+      {I && <span style={{ width: 13, height: 13 }}><I /></span>}
+      {children}
+    </button>
+  );
+}
+
+function Card({ children, style, subject, accent, padded = true }) {
+  return (
+    <div data-subject={subject} style={{
+      background: "var(--surface)",
+      border: `1px solid ${accent ? "var(--s-line)" : "var(--line)"}`,
+      borderRadius: "var(--r-lg)",
+      padding: padded ? "var(--sp-5)" : 0,
+      boxShadow: "var(--shadow-sm)",
+      ...style,
+    }}>{children}</div>
+  );
+}
+
+function SectionTitle({ kicker, title, action, style }) {
+  return (
+    <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 12, ...style }}>
+      <div>
+        {kicker && <div className="label-xs" style={{ marginBottom: 4 }}>{kicker}</div>}
+        <div style={{ fontSize: "var(--fs-18)", fontWeight: 500, letterSpacing: "-0.01em" }}>{title}</div>
+      </div>
+      {action}
+    </div>
+  );
+}
+
+// expose
+export {
+  Ic,
+  SUBJECT_ICONS,
+  Sidebar,
+  TopBar,
+  CommandBar,
+  Pill,
+  Btn,
+  Card,
+  SectionTitle,
+  WORKFLOWS,
+};

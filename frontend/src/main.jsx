@@ -1,5 +1,9 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
+
+// Design tokens (light + dark + subject hues).
+import './styles/tokens.css'
+
 import App from './App.jsx'
 
 ReactDOM.createRoot(document.getElementById('root')).render(
