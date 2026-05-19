@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 
-const API_BASE = "http://localhost:8000"; // FastAPI backend URL
+const API_BASE = "/api";
 
 // ─── Theme & Styles ───────────────────────────────────────────────────────────
 const GlobalStyle = () => (

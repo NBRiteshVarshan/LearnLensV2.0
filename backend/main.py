@@ -10,10 +10,13 @@ import json
 import random
 from typing import List, Optional
 
+import pathlib
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import APIRouter, FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 import fitz  # PyMuPDF
@@ -88,6 +91,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+router = APIRouter()
+
+STATIC_DIR = pathlib.Path(__file__).parent.parent / "frontend" / "dist"
 
 # =========================================================
 # TEMP PDF STORE (in-memory)
@@ -301,12 +308,12 @@ def get_relevant_context_for_question(question: str, pdf_ids: List[str],
 # API ROUTES
 # =========================================================
 
-@app.get("/")
+@router.get("/")
 async def root():
     return {"message": "LearnLens API Running with Qdrant", "version": "3.1"}
 
 
-@app.get("/health")
+@router.get("/health")
 async def health_check():
     """Health check endpoint for debugging."""
     try:
@@ -322,7 +329,7 @@ async def health_check():
         return {"status": "unhealthy", "error": str(e)}
 
 
-@app.post("/upload")
+@router.post("/upload")
 async def upload(file: UploadFile = File(...)):
     """Upload a PDF file and store metadata."""
     try:
@@ -343,7 +350,7 @@ async def upload(file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
 
 
-@app.post("/ingest")
+@router.post("/ingest")
 async def ingest(data: dict):
     """Extract, chunk, embed, and index PDF content in Qdrant."""
     pdf_id = data.get("pdf_id")
@@ -409,7 +416,7 @@ async def ingest(data: dict):
         raise HTTPException(status_code=500, detail=f"Ingestion failed: {str(e)}")
 
 
-@app.post("/ask")
+@router.post("/ask")
 async def ask(req: AskRequest):
     """Answer questions using RAG from selected PDFs."""
     question = req.question.strip()
@@ -470,7 +477,7 @@ ANSWER:"""
         raise HTTPException(status_code=500, detail=f"Question answering failed: {str(e)}")
 
 
-@app.post("/summary")
+@router.post("/summary")
 async def summary(req: SummaryRequest):
     """Generate structured summary from selected PDFs."""
     pdf_ids = req.get_valid_ids()
@@ -511,7 +518,7 @@ SOURCES:
         raise HTTPException(status_code=500, detail=f"Summary generation failed: {str(e)}")
 
 
-@app.post("/extract-text")
+@router.post("/extract-text")
 async def extract_text(file: UploadFile = File(...)):
     """Extract raw text from a PDF (for PYQ processing)."""
     try:
@@ -534,7 +541,7 @@ async def extract_text(file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail=f"Text extraction failed: {str(e)}")
 
 
-@app.post("/quiz")
+@router.post("/quiz")
 async def quiz(req: QuizRequest):
     """Generate MCQ quiz from selected PDFs."""
     pdf_ids = req.get_valid_ids()
@@ -589,7 +596,7 @@ CONTENT:
         raise HTTPException(status_code=500, detail=f"Quiz generation failed: {str(e)}")
 
 
-@app.get("/pdfs")
+@router.get("/pdfs")
 async def list_pdfs():
     """List all indexed PDFs."""
     return {
@@ -600,7 +607,7 @@ async def list_pdfs():
     }
 
 
-@app.delete("/pdf/{pdf_id}")
+@router.delete("/pdf/{pdf_id}")
 async def delete_pdf(pdf_id: str):
     """Delete a PDF and its indexed content."""
     if pdf_id not in pdf_store:
@@ -630,3 +637,25 @@ async def delete_pdf(pdf_id: str):
     except Exception as e:
         print(f"❌ Delete error: {e}")
         raise HTTPException(status_code=500, detail=f"Deletion failed: {str(e)}")
+
+
+# =========================================================
+# MOUNT ROUTER + SERVE FRONTEND
+# =========================================================
+
+app.include_router(router, prefix="/api")
+
+if STATIC_DIR.exists():
+    app.mount("/assets", StaticFiles(directory=str(STATIC_DIR / "assets")), name="assets")
+
+
+@app.get("/{full_path:path}")
+async def serve_spa(full_path: str):
+    """Serve the built React app for all non-API routes."""
+    index = STATIC_DIR / "index.html"
+    if not index.exists():
+        return {"message": "Frontend not built. Run: cd frontend && npm run build"}
+    candidate = STATIC_DIR / full_path
+    if candidate.exists() and candidate.is_file():
+        return FileResponse(str(candidate))
+    return FileResponse(str(index))
