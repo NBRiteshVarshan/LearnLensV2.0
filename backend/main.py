@@ -3,6 +3,11 @@
 # LearnLens API - Qdrant Version (Fixed)
 # =========================================================
 
+import sys
+if sys.platform == "win32":
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
+
 import os
 import re
 import uuid
