@@ -69,6 +69,15 @@ embedding_model: SentenceTransformer = None
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global qdrant, embedding_model
+
+    # Remove stale lock left by a previously crashed process
+    lock_file = pathlib.Path("./qdrant_data/.lock")
+    if lock_file.exists():
+        try:
+            lock_file.unlink()
+        except OSError:
+            pass
+
     qdrant = QdrantClient(path="./qdrant_data")
     existing = [c.name for c in qdrant.get_collections().collections]
     if COLLECTION_NAME not in existing:
@@ -282,14 +291,14 @@ def get_relevant_context_for_question(question: str, pdf_ids: List[str],
         for pid in pdf_ids:
             if pid not in pdf_store:
                 continue
-            results = qdrant.search(
+            results = qdrant.query_points(
                 collection_name=COLLECTION_NAME,
-                query_vector=query_embedding,
+                query=query_embedding,
                 limit=max_chunks_per_pdf,
-                scroll_filter=Filter(
+                query_filter=Filter(
                     must=[FieldCondition(key="pdf_id", match=MatchValue(value=pid))]
                 )
-            )
+            ).points
             pdf_name = pdf_store[pid]["name"]
             for r in results:
                 if "text" in r.payload:
@@ -441,17 +450,17 @@ async def ask(req: AskRequest):
         else:
             # Global search fallback
             query_embedding = embedding_model.encode(question).tolist()
-            results = qdrant.search(
+            results = qdrant.query_points(
                 collection_name=COLLECTION_NAME,
-                query_vector=query_embedding,
+                query=query_embedding,
                 limit=6
-            )
+            ).points
             if not results:
                 return {"answer": "Answer not found in uploaded notes.", "sources_used": []}
             context = "\n".join([r.payload["text"] for r in results[:4] if "text" in r.payload])
             source_names = list(set(
-                pdf_store[r.payload["pdf_id"]]["name"] 
-                for r in results 
+                pdf_store[r.payload["pdf_id"]]["name"]
+                for r in results
                 if r.payload.get("pdf_id") in pdf_store
             ))
         
