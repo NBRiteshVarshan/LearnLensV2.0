@@ -1,30 +1,168 @@
-import React, { useState } from "react";
-import { SUBJECTS, ACTIVITY, TODAY_TASKS, WEEK_FOCUS } from "./data.js";
+import React, { useState, useEffect, useRef } from "react";
+import { useAppData } from "./data.js";
 import { Card, Pill, Btn, SectionTitle, Ic, SUBJECT_ICONS } from "./Shell.jsx";
 
-function Dashboard({ setRoute, workflow }) {
-  const today = new Date(2026, 4, 16); // May 16
+function useNow(intervalMs = 1000) {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), intervalMs);
+    return () => clearInterval(id);
+  }, [intervalMs]);
+  return now;
+}
+
+function greeting(h) {
+  if (h < 5)  return "Still up";
+  if (h < 12) return "Good morning";
+  if (h < 17) return "Good afternoon";
+  if (h < 21) return "Good evening";
+  return "Late tonight";
+}
+
+const FMT_DATE = new Intl.DateTimeFormat("en-GB", { weekday: "long", day: "numeric", month: "long" });
+const FMT_TIME = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
+
+function Dashboard({ setRoute, workflow, onAddSubject }) {
+  const d = useAppData();
+  if (!d.demo && d.subjects.length === 0) {
+    return <EmptyDashboard user={d.user} onAddSubject={onAddSubject} setRoute={setRoute} />;
+  }
+  return <LiveDashboard data={d} setRoute={setRoute} workflow={workflow} onAddSubject={onAddSubject} />;
+}
+
+function EmptyDashboard({ user, onAddSubject, setRoute }) {
+  const now = useNow(1000);
+  const u = user;
+  return (
+    <div style={{ padding: "40px 32px 60px", maxWidth: 1100, margin: "0 auto" }}>
+      <div style={{ marginBottom: 32 }}>
+        <div className="label-xs" style={{ marginBottom: 8 }}>
+          {FMT_DATE.format(now)} <span className="mono" style={{ color: "var(--ink-4)" }}>· {FMT_TIME.format(now)}</span>
+        </div>
+        <h1 style={{
+          fontFamily: "var(--font-serif)", fontWeight: 400,
+          fontSize: "var(--fs-36)", letterSpacing: "-0.02em", lineHeight: 1.1, marginBottom: 12,
+        }}>
+          Welcome to LearnLens, <span style={{ color: "var(--accent)" }}>{u.name.split(" ")[0]}</span>.
+        </h1>
+        <p style={{ color: "var(--ink-2)", fontSize: "var(--fs-15)", maxWidth: 580 }}>
+          Your dashboard updates in real time as you study. Start by adding a subject — then
+          upload your notes and let the AI tools index, summarise, and quiz you on them.
+        </p>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14, marginBottom: 28 }}>
+        <OnboardCard n={1} title="Add a subject" hint="Mathematics, programming, biology — anything you're studying."
+          cta="Add subject" onClick={onAddSubject} active />
+        <OnboardCard n={2} title="Upload your notes" hint="PDFs, lecture slides, textbook chapters. We chunk + index them."
+          cta="Open AI Tools" onClick={() => setRoute({ view: "aitools" })} />
+        <OnboardCard n={3} title="Ask, summarise, quiz" hint="The dashboard fills in with live activity as you work."
+          cta="Browse calendar" onClick={() => setRoute({ view: "calendar" })} />
+      </div>
+
+      <Card padded={false}>
+        <div style={{ padding: "14px 18px", borderBottom: "1px solid var(--line)", display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+          <div>
+            <div className="label-xs">What will appear here</div>
+            <div style={{ fontSize: "var(--fs-18)", fontWeight: 500, letterSpacing: "-0.01em" }}>Your live study state</div>
+          </div>
+          <span className="mono" style={{ fontSize: 11, color: "var(--ink-3)" }}>preview</span>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 0 }}>
+          {[
+            ["Focus this week",  "—",   "rolls up your sessions"],
+            ["Current streak",   "0 d", "extends every study day"],
+            ["Recall avg",       "—",   "from flashcards + quizzes"],
+            ["Real-time AI",     "—",   "what the AI is processing"],
+          ].map((row, i) => (
+            <div key={i} style={{
+              padding: "16px 18px", borderRight: i < 3 ? "1px solid var(--line-soft)" : "none",
+            }}>
+              <div className="label-xs" style={{ marginBottom: 4 }}>{row[0]}</div>
+              <div style={{ fontFamily: "var(--font-serif)", fontSize: 24, color: "var(--ink-3)", marginBottom: 2 }}>{row[1]}</div>
+              <div style={{ fontSize: 11.5, color: "var(--ink-4)" }}>{row[2]}</div>
+            </div>
+          ))}
+        </div>
+      </Card>
+
+      <div style={{ marginTop: 22, fontSize: 12, color: "var(--ink-3)", textAlign: "center" }}>
+        Tip — flip on <span className="mono" style={{
+          padding: "1px 6px", borderRadius: 3, background: "var(--surface-2)", color: "var(--ink-2)",
+        }}>Demo data</span> in the Tweaks panel to see a populated example.
+      </div>
+    </div>
+  );
+}
+
+function OnboardCard({ n, title, hint, cta, onClick, active }) {
+  return (
+    <Card style={{ padding: 0, position: "relative", overflow: "hidden",
+      borderColor: active ? "var(--accent-line)" : "var(--line)" }}>
+      {active && <div style={{ position: "absolute", inset: 0, background: "var(--accent-soft)", opacity: 0.4, pointerEvents: "none" }} />}
+      <div style={{ position: "relative", padding: "18px 18px 16px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+          <span style={{
+            width: 22, height: 22, borderRadius: "50%",
+            background: active ? "var(--accent)" : "var(--surface-2)",
+            color: active ? "var(--on-accent)" : "var(--ink-2)",
+            display: "grid", placeItems: "center",
+            fontSize: 11, fontWeight: 600, fontFamily: "var(--font-mono)",
+          }}>{n}</span>
+          <div style={{ fontSize: "var(--fs-15)", fontWeight: 500, letterSpacing: "-0.01em" }}>{title}</div>
+        </div>
+        <p style={{ fontSize: "var(--fs-13)", color: "var(--ink-2)", lineHeight: 1.5, marginBottom: 14, minHeight: 36 }}>
+          {hint}
+        </p>
+        <Btn variant={active ? "accent" : "default"} icon={active ? Ic.Plus : Ic.Chev} onClick={onClick}>{cta}</Btn>
+      </div>
+    </Card>
+  );
+}
+
+function LiveDashboard({ data, setRoute, workflow, onAddSubject }) {
+  const now = useNow(1000);
+  const u = data.user;
   const wlabel = ({ study: "deep study", rev: "revision", exam: "exam prep", quick: "quick practice" })[workflow];
+  const dueCount = data.todayTasks.filter(t => !t.done).length;
+  const scheduledMin = data.todayTasks.reduce((acc, t) => acc + parseInt(t.est) || 0, 0);
 
   return (
     <div style={{ padding: "28px 32px 60px", maxWidth: 1400, margin: "0 auto" }}>
-      {/* Hero greeting */}
-      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 28, gap: 24 }}>
+      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 24, gap: 24 }}>
         <div>
-          <div className="label-xs" style={{ marginBottom: 8 }}>
-            Saturday · 16 May · Week 12 of Hilary term
+          <div className="label-xs" style={{ marginBottom: 8, display: "flex", alignItems: "center", gap: 10 }}>
+            {FMT_DATE.format(now)}
+            <span style={{ color: "var(--ink-4)" }}>·</span>
+            <span className="mono tabular" style={{ color: "var(--ink-2)" }}>{FMT_TIME.format(now)}</span>
+            <span style={{
+              display: "inline-flex", alignItems: "center", gap: 4,
+              padding: "1px 6px", borderRadius: 100,
+              background: "var(--ok-soft)", color: "var(--ok)", border: "1px solid color-mix(in oklch, var(--ok) 30%, var(--line))",
+              fontSize: 10, fontWeight: 500, textTransform: "none", letterSpacing: 0,
+            }}>
+              <span style={{ width: 5, height: 5, borderRadius: "50%", background: "var(--ok)",
+                animation: "ll-pulse-soft 1.6s infinite" }} />
+              live
+            </span>
           </div>
           <h1 style={{
             fontFamily: "var(--font-serif)", fontWeight: 400,
             fontSize: "var(--fs-36)", letterSpacing: "-0.02em",
             lineHeight: 1.1, marginBottom: 10,
           }}>
-            Good afternoon, Eleanor.
+            {greeting(now.getHours())}, {u.name.split(" ")[0]}.
           </h1>
-          <p style={{ color: "var(--ink-2)", fontSize: "var(--fs-15)", maxWidth: 580 }}>
-            You have <b style={{ color: "var(--ink)" }}>3 active tasks</b> due this week and{" "}
-            <b style={{ color: "var(--ink)" }}>2h 40m</b> of scheduled study. Continuing in{" "}
-            <span style={{ color: "var(--accent)", fontWeight: 500 }}>{wlabel}</span> mode.
+          <p style={{ color: "var(--ink-2)", fontSize: "var(--fs-15)", maxWidth: 620 }}>
+            {dueCount > 0 ? (
+              <>
+                You have <b style={{ color: "var(--ink)" }}>{dueCount} active task{dueCount === 1 ? "" : "s"}</b> and{" "}
+                <b style={{ color: "var(--ink)" }}>{Math.floor(scheduledMin / 60)}h {scheduledMin % 60}m</b> of scheduled study.{" "}
+              </>
+            ) : (
+              <>Nothing due today — a clean slate.{" "}</>
+            )}
+            Continuing in <span style={{ color: "var(--accent)", fontWeight: 500 }}>{wlabel}</span> mode.
           </p>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
@@ -33,53 +171,35 @@ function Dashboard({ setRoute, workflow }) {
         </div>
       </div>
 
-      {/* Quick-stats strip */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, marginBottom: 28 }}>
-        <StatCell
-          kicker="Focus this week"
-          big="14h 22m"
-          delta="+1h 40m vs last week"
-          deltaTone="ok"
-          spark={[1.4, 2.0, 0.6, 1.8, 0, 0.8, 1.2]}
-        />
-        <StatCell
-          kicker="Current streak"
-          big="12 days"
-          delta="Personal best — keep it"
-          deltaTone="ok"
-          icon={Ic.Flame}
-        />
-        <StatCell
-          kicker="Recall (7d avg)"
-          big="84%"
-          delta="−3% — weak: Krebs cycle"
-          deltaTone="warn"
-        />
-        <StatCell
-          kicker="Coming due"
-          big="3 items"
-          delta="Math · Lit · Phys"
-          deltaTone="due"
-        />
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 12, marginBottom: 22 }}>
+        <StatCell kicker="Focus this week" big="14h 22m" delta="+1h 40m vs last week" deltaTone="ok"
+          spark={[1.4, 2.0, 0.6, 1.8, 0, 0.8, 1.2]} />
+        <StatCell kicker="Current streak" big={`${u.currentStreak} days`}
+          delta={`Personal best: ${u.longestStreak}`} deltaTone="ok" icon={Ic.Flame} />
+        <StatCell kicker="Recall (7d avg)" big="84%" delta="−3% — weak: Krebs cycle" deltaTone="warn" />
+        <StatCell kicker="Coming due" big={`${dueCount} items`} delta="Math · Lit · Phys" deltaTone="due" />
+        <LiveAICell />
       </div>
 
-      {/* Subject grid */}
+      <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 16, marginBottom: 24 }}>
+        <RealtimeAnalysisCard now={now} aiActivity={data.aiActivity} />
+        <FocusSessionCard now={now} workflow={workflow} />
+      </div>
+
       <SectionTitle
-        kicker="Workspaces"
-        title="Your subjects"
+        kicker="Workspaces" title="Your subjects"
         action={
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <span style={{ fontSize: "var(--fs-13)", color: "var(--ink-3)" }}>{SUBJECTS.length} active</span>
+            <span style={{ fontSize: "var(--fs-13)", color: "var(--ink-3)" }}>{data.subjects.length} active</span>
             <Btn icon={Ic.Filter} variant="ghost">Sort</Btn>
-            <Btn icon={Ic.Plus}>Add subject</Btn>
+            <Btn icon={Ic.Plus} onClick={onAddSubject}>Add subject</Btn>
           </div>
         }
       />
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14, marginBottom: 36 }}>
-        {SUBJECTS.map(s => <SubjectCard key={s.id} s={s} onOpen={() => setRoute({ view: "subject", id: s.id })} />)}
+        {data.subjects.map(s => <SubjectCard key={s.id} s={s} onOpen={() => setRoute({ view: "subject", id: s.id })} />)}
       </div>
 
-      {/* Two-column: Today + Activity & Focus chart */}
       <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 16 }}>
         <Card padded={false}>
           <div style={{
@@ -87,15 +207,15 @@ function Dashboard({ setRoute, workflow }) {
             padding: "14px 18px", borderBottom: "1px solid var(--line)",
           }}>
             <div>
-              <div className="label-xs">Today · 16 May</div>
+              <div className="label-xs">Today · {now.getDate()} {FMT_DATE.format(now).split(" ")[2]}</div>
               <div style={{ fontSize: "var(--fs-18)", fontWeight: 500, letterSpacing: "-0.01em" }}>Plan & tasks</div>
             </div>
             <div style={{ display: "flex", gap: 6 }}>
-              <Pill tone="accent">5 tasks</Pill>
-              <Pill tone="due">1 due today</Pill>
+              <Pill tone="accent">{data.todayTasks.length} tasks</Pill>
+              <Pill tone="due">{dueCount} due</Pill>
             </div>
           </div>
-          <TaskList />
+          <TaskList tasks={data.todayTasks} subjects={data.subjects} />
         </Card>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -104,12 +224,12 @@ function Dashboard({ setRoute, workflow }) {
               <div className="label-xs">Focus this week</div>
               <div style={{ fontSize: "var(--fs-18)", fontWeight: 500, letterSpacing: "-0.01em" }}>Hours by subject</div>
             </div>
-            <FocusChart />
+            <FocusChart weekFocus={data.weekFocus} />
             <div style={{
               display: "flex", flexWrap: "wrap", gap: 10, padding: "0 18px 16px",
               fontSize: 11, color: "var(--ink-3)",
             }}>
-              {SUBJECTS.slice(0, 6).map(s => (
+              {data.subjects.slice(0, 6).map(s => (
                 <span key={s.id} data-subject={s.id} style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
                   <span style={{ width: 8, height: 8, borderRadius: 2, background: "var(--s)" }} />
                   {s.name}
@@ -122,11 +242,169 @@ function Dashboard({ setRoute, workflow }) {
               <div className="label-xs">Activity</div>
               <div style={{ fontSize: "var(--fs-18)", fontWeight: 500, letterSpacing: "-0.01em" }}>Recent</div>
             </div>
-            <ActivityStream />
+            <ActivityStream activity={data.activity} subjects={data.subjects} />
           </Card>
         </div>
       </div>
     </div>
+  );
+}
+
+function RealtimeAnalysisCard({ now, aiActivity }) {
+  const fmtRel = (mins) => {
+    if (mins < 1) return "just now";
+    if (mins < 60) return `${mins}m ago`;
+    return `${Math.floor(mins / 60)}h ago`;
+  };
+
+  return (
+    <Card padded={false}>
+      <div style={{
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        padding: "14px 18px", borderBottom: "1px solid var(--line)",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <span style={{
+            width: 28, height: 28, borderRadius: 6,
+            background: "var(--accent-soft)", color: "var(--accent)",
+            display: "grid", placeItems: "center",
+          }}>
+            <span style={{ width: 14, height: 14 }}><Ic.Bot /></span>
+          </span>
+          <div>
+            <div className="label-xs">Real-time AI analysis</div>
+            <div style={{ fontSize: "var(--fs-18)", fontWeight: 500, letterSpacing: "-0.01em" }}>
+              Personalised — what the AI saw today
+            </div>
+          </div>
+        </div>
+        <span style={{
+          display: "inline-flex", alignItems: "center", gap: 5,
+          fontSize: 10.5, color: "var(--ok)", fontWeight: 500,
+        }}>
+          <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--ok)",
+            animation: "ll-pulse-soft 1.4s infinite" }} />
+          live · streaming
+        </span>
+      </div>
+      <div style={{ padding: "6px 0 4px" }}>
+        {aiActivity.map((a, i) => {
+          const mins = -a.t;
+          const kindMeta = {
+            embed:   { c: "var(--accent)", l: "INGEST" },
+            weak:    { c: "var(--due)",    l: "WEAK"   },
+            answer:  { c: "var(--ok)",     l: "ASK"    },
+            quiz:    { c: "var(--warn)",   l: "QUIZ"   },
+            summary: { c: "var(--ink-2)",  l: "SUM"    },
+          }[a.kind];
+          return (
+            <div key={i} data-subject={a.subj} style={{
+              display: "grid", gridTemplateColumns: "60px 1fr auto",
+              gap: 12, padding: "9px 18px", alignItems: "center",
+              borderTop: i === 0 ? "none" : "1px solid var(--line-soft)",
+            }}>
+              <span className="mono" style={{
+                fontSize: 10, color: kindMeta.c, fontWeight: 600,
+                padding: "1.5px 6px", borderRadius: 3,
+                background: `color-mix(in oklch, ${kindMeta.c} 12%, transparent)`,
+                width: "fit-content",
+              }}>{kindMeta.l}</span>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: "var(--fs-13)", color: "var(--ink)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {a.text}
+                </div>
+                <div style={{ fontSize: 11, color: "var(--ink-3)", marginTop: 1 }} className="mono">{a.meta}</div>
+              </div>
+              <span className="mono tabular" style={{ fontSize: 10.5, color: "var(--ink-3)" }}>{fmtRel(mins)}</span>
+            </div>
+          );
+        })}
+      </div>
+    </Card>
+  );
+}
+
+function FocusSessionCard({ now, workflow }) {
+  const [running, setRunning] = useState(false);
+  const startRef = useRef(null);
+  useEffect(() => { if (running && !startRef.current) startRef.current = Date.now(); if (!running) startRef.current = null; }, [running]);
+  const elapsed = running ? Math.floor((now - startRef.current) / 1000) : 0;
+  const mm = String(Math.floor(elapsed / 60)).padStart(2, "0");
+  const ss = String(elapsed % 60).padStart(2, "0");
+
+  const wMeta = {
+    study: { label: "Deep study", target: 50, hint: "Reading-first, long sessions" },
+    rev:   { label: "Revision",   target: 30, hint: "Recall + summaries" },
+    exam:  { label: "Exam prep",  target: 25, hint: "PYQ drills + timer" },
+    quick: { label: "Quick",      target: 10, hint: "10-min sprint" },
+  }[workflow];
+
+  const pct = Math.min(1, elapsed / (wMeta.target * 60));
+
+  return (
+    <Card padded={false}>
+      <div style={{ padding: "14px 18px", borderBottom: "1px solid var(--line)" }}>
+        <div className="label-xs">Focus session</div>
+        <div style={{ fontSize: "var(--fs-18)", fontWeight: 500, letterSpacing: "-0.01em" }}>{wMeta.label} · {wMeta.target}m</div>
+      </div>
+      <div style={{ padding: "20px 18px 16px", textAlign: "center" }}>
+        <div style={{ position: "relative", width: 140, height: 140, margin: "0 auto 8px" }}>
+          <svg width="140" height="140" style={{ transform: "rotate(-90deg)" }}>
+            <circle cx="70" cy="70" r="62" fill="none" stroke="var(--line)" strokeWidth="4" />
+            <circle cx="70" cy="70" r="62" fill="none"
+              stroke="var(--accent)" strokeWidth="4" strokeLinecap="round"
+              strokeDasharray={2 * Math.PI * 62}
+              strokeDashoffset={2 * Math.PI * 62 * (1 - pct)}
+              style={{ transition: "stroke-dashoffset 0.5s linear" }} />
+          </svg>
+          <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center" }}>
+            <div>
+              <div className="mono tabular" style={{ fontFamily: "var(--font-serif)", fontSize: 32, lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>
+                {mm}:{ss}
+              </div>
+              <div style={{ fontSize: 10.5, color: "var(--ink-3)", marginTop: 2, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                {running ? "running" : "idle"}
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style={{ fontSize: 12, color: "var(--ink-3)", marginBottom: 12 }}>{wMeta.hint}</div>
+        <div style={{ display: "flex", justifyContent: "center", gap: 6 }}>
+          <Btn variant={running ? "default" : "primary"} icon={Ic.Timer} onClick={() => setRunning(r => !r)}>
+            {running ? "Pause" : "Start"}
+          </Btn>
+          <Btn variant="ghost" onClick={() => { setRunning(false); startRef.current = null; }}>Reset</Btn>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+function LiveAICell() {
+  const [tick, setTick] = useState(0);
+  useEffect(() => { const id = setInterval(() => setTick(t => t + 1), 1200); return () => clearInterval(id); }, []);
+  return (
+    <Card style={{ padding: "14px 16px", background: "linear-gradient(135deg, var(--accent-soft), transparent)" }}>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
+        <div className="label-xs" style={{ color: "var(--accent)" }}>AI · live</div>
+        <span style={{ width: 14, height: 14, color: "var(--accent)" }}><Ic.Bot /></span>
+      </div>
+      <div style={{
+        fontFamily: "var(--font-serif)", fontWeight: 400,
+        fontSize: 22, marginTop: 4, marginBottom: 6, letterSpacing: "-0.02em",
+      }} className="tabular">
+        indexing…
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 4 }} className="mono">
+        {[0,1,2].map(i => (
+          <span key={i} style={{
+            width: 4, height: 4, borderRadius: "50%", background: "var(--accent)",
+            opacity: ((tick + i) % 3 === 0) ? 1 : 0.3, transition: "opacity 240ms",
+          }} />
+        ))}
+        <span style={{ fontSize: 11, color: "var(--ink-3)", marginLeft: 6 }}>12 chunks · 0.84s</span>
+      </div>
+    </Card>
   );
 }
 
@@ -140,12 +418,12 @@ function StatCell({ kicker, big, delta, deltaTone = "ok", spark, icon: I }) {
       </div>
       <div style={{
         fontFamily: "var(--font-serif)", fontWeight: 400,
-        fontSize: 28, marginTop: 4, marginBottom: 6, letterSpacing: "-0.02em",
+        fontSize: 26, marginTop: 4, marginBottom: 6, letterSpacing: "-0.02em",
       }} className="tabular">
         {big}
       </div>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
-        <div style={{ fontSize: 11.5, color: tone, fontWeight: 500 }}>{delta}</div>
+        <div style={{ fontSize: 11, color: tone, fontWeight: 500 }}>{delta}</div>
         {spark && <Sparkline values={spark} />}
       </div>
     </Card>
@@ -153,7 +431,7 @@ function StatCell({ kicker, big, delta, deltaTone = "ok", spark, icon: I }) {
 }
 
 function Sparkline({ values }) {
-  const w = 60, h = 18, max = Math.max(...values, 1);
+  const w = 50, h = 16, max = Math.max(...values, 1);
   const pts = values.map((v, i) => `${(i / (values.length - 1)) * w},${h - (v / max) * h}`).join(" ");
   return (
     <svg width={w} height={h} style={{ overflow: "visible" }}>
@@ -163,7 +441,6 @@ function Sparkline({ values }) {
   );
 }
 
-// ── Subject card ───────────────────────────────────────────────────────────
 function SubjectCard({ s, onOpen }) {
   const I = SUBJECT_ICONS[s.id];
   return (
@@ -175,12 +452,10 @@ function SubjectCard({ s, onOpen }) {
     }}
       onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--s-line)"; e.currentTarget.style.boxShadow = "var(--shadow-md)"; e.currentTarget.style.transform = "translateY(-1px)"; }}
       onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--line)"; e.currentTarget.style.boxShadow = "var(--shadow-sm)"; e.currentTarget.style.transform = "none"; }}>
-      {/* head — colored hairline + spine */}
       <div style={{
-        position: "relative",
-        padding: "18px 18px 0",
-        borderBottom: `1px solid var(--line-soft)`,
-        background: `linear-gradient(180deg, color-mix(in oklch, var(--s-soft) 60%, transparent) 0%, transparent 100%)`,
+        position: "relative", padding: "18px 18px 0",
+        borderBottom: "1px solid var(--line-soft)",
+        background: "linear-gradient(180deg, color-mix(in oklch, var(--s-soft) 60%, transparent) 0%, transparent 100%)",
       }}>
         <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 3, background: "var(--s)" }} />
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
@@ -189,7 +464,7 @@ function SubjectCard({ s, onOpen }) {
               width: 28, height: 28, borderRadius: 6, background: "var(--surface)",
               border: "1px solid var(--s-line)", display: "grid", placeItems: "center",
               color: "var(--s)",
-            }}><span style={{ width: 15, height: 15 }}><I /></span></span>
+            }}>{I && <span style={{ width: 15, height: 15 }}><I /></span>}</span>
             <div>
               <div className="mono" style={{ fontSize: 10.5, color: "var(--ink-3)" }}>{s.code} · {s.tag}</div>
               <div style={{ fontSize: "var(--fs-16)", fontWeight: 600, letterSpacing: "-0.01em" }}>{s.name}</div>
@@ -205,7 +480,6 @@ function SubjectCard({ s, onOpen }) {
           {s.title}
         </div>
 
-        {/* progress */}
         <div style={{ marginBottom: 14 }}>
           <div style={{ height: 3, background: "var(--line-soft)", borderRadius: 2, overflow: "hidden" }}>
             <div style={{ width: `${s.progress}%`, height: "100%", background: "var(--s)" }} />
@@ -217,14 +491,11 @@ function SubjectCard({ s, onOpen }) {
         </div>
       </div>
 
-      {/* next-up */}
       <div style={{ padding: "12px 18px 14px" }}>
         <div className="label-xs" style={{ marginBottom: 6 }}>Next up</div>
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
           <div style={{ minWidth: 0, flex: 1 }}>
-            <div style={{ fontSize: "var(--fs-13)", color: "var(--ink-3)" }}>
-              {s.next.kind}
-            </div>
+            <div style={{ fontSize: "var(--fs-13)", color: "var(--ink-3)" }}>{s.next.kind}</div>
             <div style={{ fontSize: "var(--fs-14)", fontWeight: 500, lineHeight: 1.35,
               overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
               {s.next.title}
@@ -234,7 +505,6 @@ function SubjectCard({ s, onOpen }) {
         </div>
       </div>
 
-      {/* footer */}
       <div style={{
         display: "flex", alignItems: "center", justifyContent: "space-between",
         padding: "10px 18px", borderTop: "1px solid var(--line-soft)",
@@ -250,16 +520,24 @@ function SubjectCard({ s, onOpen }) {
   );
 }
 
-// ── Task list ──────────────────────────────────────────────────────────────
-function TaskList() {
-  const [tasks, setTasks] = useState(TODAY_TASKS);
+function TaskList({ tasks: initial, subjects }) {
+  const [tasks, setTasks] = useState(initial);
   const toggle = id => setTasks(t => t.map(x => x.id === id ? { ...x, done: !x.done } : x));
+
+  if (tasks.length === 0) {
+    return (
+      <div style={{ padding: "32px 18px", textAlign: "center", color: "var(--ink-3)" }}>
+        <div style={{ fontSize: "var(--fs-14)", marginBottom: 4 }}>No tasks yet.</div>
+        <div style={{ fontSize: 11.5 }}>Tasks you add to subjects will show up here.</div>
+      </div>
+    );
+  }
 
   return (
     <div>
       {tasks.map((t, i) => {
-        const s = SUBJECTS.find(x => x.id === t.subj);
-        const I = SUBJECT_ICONS[t.subj];
+        const s = subjects.find(x => x.id === t.subj);
+        const I = s ? SUBJECT_ICONS[t.subj] : null;
         return (
           <div key={t.id} data-subject={t.subj} style={{
             display: "grid", gridTemplateColumns: "auto 1fr auto auto auto",
@@ -283,19 +561,23 @@ function TaskList() {
                 color: t.done ? "var(--ink-3)" : "var(--ink)",
               }}>{t.title}</div>
               <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11.5, color: "var(--ink-3)", marginTop: 2 }}>
-                <span style={{ display: "inline-flex", alignItems: "center", gap: 4, color: "var(--s)" }}>
-                  <span style={{ width: 11, height: 11 }}><I /></span>
-                  {s.name}
-                </span>
-                <span>·</span>
+                {s && (
+                  <>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 4, color: "var(--s)" }}>
+                      <span style={{ width: 11, height: 11 }}>{I && <I />}</span>
+                      {s.name}
+                    </span>
+                    <span>·</span>
+                  </>
+                )}
                 <span>{t.kind}</span>
               </div>
             </div>
             <span className="mono tabular" style={{ fontSize: 11, color: "var(--ink-3)" }}>{t.est}</span>
             <span style={{ width: 18, display: "grid", placeItems: "center" }}>
               {t.priority === "high" && <span title="High" style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--due)" }} />}
-              {t.priority === "med"  && <span title="Med" style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--warn)" }} />}
-              {t.priority === "low"  && <span title="Low" style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--ink-4)" }} />}
+              {t.priority === "med"  && <span title="Med"  style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--warn)" }} />}
+              {t.priority === "low"  && <span title="Low"  style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--ink-4)" }} />}
             </span>
             <span className="mono tabular" style={{ fontSize: 11, color: t.due === "23:59" ? "var(--due)" : "var(--ink-3)", minWidth: 36, textAlign: "right" }}>
               {t.due}
@@ -315,13 +597,20 @@ function TaskList() {
   );
 }
 
-// ── Focus chart (stacked bars) ─────────────────────────────────────────────
-function FocusChart() {
-  const max = 5; // hours
+function FocusChart({ weekFocus }) {
+  const max = 5;
   const subs = ["math", "prog", "bio", "lit", "phys", "chem"];
+  const hasAny = weekFocus.some(d => subs.some(k => d[k] > 0));
+  if (!hasAny) {
+    return (
+      <div style={{ padding: "32px 18px", textAlign: "center", color: "var(--ink-3)", fontSize: 12 }}>
+        No focus sessions logged yet.
+      </div>
+    );
+  }
   return (
     <div style={{ padding: "8px 18px 12px", display: "flex", alignItems: "flex-end", gap: 10, height: 132 }}>
-      {WEEK_FOCUS.map((day, i) => {
+      {weekFocus.map((day, i) => {
         const total = subs.reduce((acc, k) => acc + (day[k] || 0), 0);
         return (
           <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
@@ -344,13 +633,20 @@ function FocusChart() {
   );
 }
 
-// ── Activity stream ────────────────────────────────────────────────────────
 const ACT_ICONS = { note: Ic.Note, quiz: Ic.Quiz, anno: Ic.Bookmark, video: Ic.Video, card: Ic.Card, essay: Ic.Quill };
-function ActivityStream() {
+
+function ActivityStream({ activity, subjects }) {
+  if (!activity || activity.length === 0) {
+    return (
+      <div style={{ padding: "24px 18px", textAlign: "center", color: "var(--ink-3)", fontSize: 12 }}>
+        Activity will appear here as you study.
+      </div>
+    );
+  }
   return (
     <div style={{ padding: "4px 0 10px" }}>
-      {ACTIVITY.map((a, i) => {
-        const s = SUBJECTS.find(x => x.id === a.subj);
+      {activity.map((a, i) => {
+        const s = subjects.find(x => x.id === a.subj);
         const I = ACT_ICONS[a.icon];
         return (
           <div key={i} data-subject={a.subj} style={{
@@ -360,7 +656,7 @@ function ActivityStream() {
               width: 24, height: 24, borderRadius: 6,
               background: "var(--s-soft)", color: "var(--s)",
               display: "grid", placeItems: "center", flexShrink: 0,
-            }}><span style={{ width: 13, height: 13 }}><I /></span></span>
+            }}><span style={{ width: 13, height: 13 }}>{I && <I />}</span></span>
             <div style={{ fontSize: "var(--fs-13)", color: "var(--ink-2)", flex: 1, minWidth: 0,
               overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
               {a.text}
@@ -373,6 +669,4 @@ function ActivityStream() {
   );
 }
 
-export {
-  Dashboard,
-};
+export { Dashboard };

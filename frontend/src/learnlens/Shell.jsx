@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 
-// ── Icons — tiny inline strokes, 16px viewbox 24 ────────────────────────────
 const Ic = {
   Home:  () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M3 11.5 12 4l9 7.5"/><path d="M5 10v9h14v-9"/></svg>,
   Books: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h7v16H4z"/><path d="M11 4h6l3 16h-9"/></svg>,
@@ -34,6 +33,14 @@ const Ic = {
   Filter:() => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M3 5h18l-7 9v6l-4-2v-4z"/></svg>,
   Bookmark: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M6 3h12v18l-6-4-6 4z"/></svg>,
   Sparkle: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v6M12 15v6M3 12h6M15 12h6M6 6l3 3M15 15l3 3M6 18l3-3M15 9l3-3"/></svg>,
+  Cog:   () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>,
+  Logout:() => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>,
+  Users: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
+  Bot:   () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><rect x="4" y="8" width="16" height="12" rx="3"/><path d="M12 4v4M8 14h.01M16 14h.01M2 14h2M20 14h2"/></svg>,
+  Trash: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>,
+  Upload:() => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>,
+  Send:  () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4z"/></svg>,
+  X:     () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>,
 };
 
 const SUBJECT_ICONS = {
@@ -41,8 +48,7 @@ const SUBJECT_ICONS = {
   lit: Ic.Quill, phys: Ic.Atom, hist: Ic.Globe,
 };
 
-// ── Sidebar ─────────────────────────────────────────────────────────────────
-function Sidebar({ route, setRoute, subjects, workflow, setWorkflow, extraNav = [] }) {
+function Sidebar({ route, setRoute, subjects, workflow, setWorkflow, user, onAddSubject }) {
   const [openSubjects, setOpen] = useState(true);
 
   const NavItem = ({ id, icon: I, label, badge }) => {
@@ -90,7 +96,7 @@ function Sidebar({ route, setRoute, subjects, workflow, setWorkflow, extraNav = 
           position: "absolute", left: 10, top: 6, bottom: 6, width: 3,
           background: active ? "var(--s)" : "transparent", borderRadius: 2,
         }} />
-        <span style={{ width: 14, height: 14, color: "var(--s)" }}><SI /></span>
+        <span style={{ width: 14, height: 14, color: "var(--s)" }}>{SI && <SI />}</span>
         <span style={{ flex: 1, textAlign: "left" }}>{s.name}</span>
         <span className="mono tabular" style={{ fontSize: 10.5, color: "var(--ink-3)" }}>{s.progress}%</span>
       </button>
@@ -129,17 +135,12 @@ function Sidebar({ route, setRoute, subjects, workflow, setWorkflow, extraNav = 
       </div>
 
       <nav style={{ padding: "8px 10px", display: "flex", flexDirection: "column", gap: 1 }}>
-        <NavItem id="dashboard" icon={Ic.Home} label="Today" />
-        <NavItem id="inbox"     icon={Ic.Inbox} label="Inbox" badge="3" />
+        <NavItem id="dashboard" icon={Ic.Home}  label="Today" />
+        <NavItem id="inbox"     icon={Ic.Inbox} label="Inbox" />
         <NavItem id="library"   icon={Ic.Books} label="Library" />
-        <NavItem id="calendar"  icon={Ic.Cal} label="Calendar" />
+        <NavItem id="calendar"  icon={Ic.Cal}   label="Calendar" />
         <NavItem id="analytics" icon={Ic.Chart} label="Analytics" />
-        {extraNav.length > 0 && (
-          <div style={{ height: 1, background: "var(--line-soft)", margin: "8px 4px" }} />
-        )}
-        {extraNav.map(item => (
-          <NavItem key={item.id} id={item.id} icon={item.icon} label={item.label} badge={item.badge} />
-        ))}
+        <NavItem id="aitools"   icon={Ic.Bot}   label="AI Tools" badge="4" />
       </nav>
 
       <div style={{ padding: "12px 14px 4px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -148,43 +149,156 @@ function Sidebar({ route, setRoute, subjects, workflow, setWorkflow, extraNav = 
           fontSize: 10.5, letterSpacing: "0.08em", textTransform: "uppercase", fontWeight: 500,
         }}>
           <span style={{ width: 10, height: 10, transform: openSubjects ? "rotate(90deg)" : "none", transition: "transform 120ms" }}><Ic.Chev /></span>
-          Subjects
+          Subjects {subjects.length > 0 && <span className="mono" style={{ color: "var(--ink-4)", marginLeft: 2 }}>{subjects.length}</span>}
         </button>
-        <button style={{ color: "var(--ink-3)", width: 14, height: 14 }}><Ic.Plus /></button>
+        <button onClick={onAddSubject} title="Add subject" style={{ color: "var(--ink-3)", width: 14, height: 14 }}><Ic.Plus /></button>
       </div>
 
       {openSubjects && (
         <div style={{ padding: "2px 10px", display: "flex", flexDirection: "column", gap: 1 }}>
-          {subjects.map(s => <SubjectItem key={s.id} s={s} />)}
+          {subjects.length === 0 ? (
+            <button onClick={onAddSubject} style={{
+              display: "flex", alignItems: "center", gap: 8,
+              padding: "8px 10px", borderRadius: "var(--r)",
+              border: "1px dashed var(--line-strong)",
+              color: "var(--ink-3)", fontSize: 12,
+              background: "transparent",
+            }}
+              onMouseEnter={e => { e.currentTarget.style.color = "var(--accent)"; e.currentTarget.style.borderColor = "var(--accent-line)"; }}
+              onMouseLeave={e => { e.currentTarget.style.color = "var(--ink-3)"; e.currentTarget.style.borderColor = "var(--line-strong)"; }}>
+              <span style={{ width: 12, height: 12 }}><Ic.Plus /></span>
+              Add your first subject
+            </button>
+          ) : (
+            subjects.map(s => <SubjectItem key={s.id} s={s} />)
+          )}
         </div>
       )}
 
       <div style={{ marginTop: "auto", padding: "12px 14px", borderTop: "1px solid var(--line)" }}>
         <div className="label-xs" style={{ marginBottom: 8 }}>Workflow</div>
         <WorkflowSwitch value={workflow} onChange={setWorkflow} />
-
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 14 }}>
-          <div style={{
-            width: 28, height: 28, borderRadius: "50%", background: "var(--surface-3)",
-            display: "grid", placeItems: "center", color: "var(--ink-2)",
-            fontWeight: 500, fontSize: 12,
-          }}>EM</div>
-          <div style={{ lineHeight: 1.2, flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: "var(--fs-13)", fontWeight: 500 }}>Eleanor M.</div>
-            <div style={{ fontSize: 11, color: "var(--ink-3)" }}>Year 3 · Hilary term</div>
-          </div>
-        </div>
+        <ProfileWidget user={user} />
       </div>
     </aside>
   );
 }
 
+function ProfileWidget({ user }) {
+  const [open, setOpen] = useState(false);
+  const u = user || { name: "Student", initials: "S?", role: "—", level: 1, xp: 0, xpForNext: 100, currentStreak: 0, longestStreak: 0, status: { label: "Online", emoji: "🟢" }, avatarHue: 265 };
+  const xpPct = Math.min(1, u.xp / u.xpForNext);
+  const streakPct = Math.min(1, u.currentStreak / Math.max(u.longestStreak, 1));
+  const ringSize = 44, stroke = 2.2, r = (ringSize - stroke) / 2;
+  const c = 2 * Math.PI * r;
+
+  return (
+    <div style={{ marginTop: 16, position: "relative" }}>
+      <button onClick={() => setOpen(o => !o)} style={{
+        display: "flex", alignItems: "center", gap: 10, width: "100%",
+        padding: "8px 8px 8px 6px", borderRadius: 10,
+        background: open ? "var(--surface-2)" : "transparent",
+        border: "1px solid", borderColor: open ? "var(--line)" : "transparent",
+        transition: "background 120ms, border-color 120ms",
+      }}>
+        <div style={{ position: "relative", width: ringSize, height: ringSize, flexShrink: 0 }}>
+          <svg width={ringSize} height={ringSize} style={{ position: "absolute", inset: 0, transform: "rotate(-90deg)" }}>
+            <circle cx={ringSize/2} cy={ringSize/2} r={r} fill="none" stroke="var(--line)" strokeWidth={stroke} />
+            <circle cx={ringSize/2} cy={ringSize/2} r={r} fill="none"
+              stroke={`oklch(70% 0.13 ${u.avatarHue})`}
+              strokeWidth={stroke} strokeLinecap="round"
+              strokeDasharray={c} strokeDashoffset={c * (1 - streakPct)} />
+          </svg>
+          <div style={{
+            position: "absolute", inset: 4, borderRadius: "50%",
+            background: `linear-gradient(135deg, oklch(82% 0.08 ${u.avatarHue}), oklch(56% 0.14 ${u.avatarHue}))`,
+            display: "grid", placeItems: "center",
+            color: "white", fontWeight: 600, fontSize: 12,
+            letterSpacing: "0.02em",
+            boxShadow: "inset 0 0 0 1px color-mix(in oklch, white 20%, transparent)",
+          }}>{u.initials}</div>
+          <span style={{
+            position: "absolute", right: -1, bottom: -1, width: 10, height: 10,
+            borderRadius: "50%", background: "var(--ok)",
+            border: "2px solid var(--rail)",
+          }} />
+        </div>
+
+        <div style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, lineHeight: 1.1 }}>
+            <span style={{ fontSize: "var(--fs-13)", fontWeight: 600, letterSpacing: "-0.005em",
+              whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 110 }}>
+              {u.name}
+            </span>
+            <span className="mono" style={{
+              fontSize: 9.5, padding: "1px 5px", borderRadius: 3,
+              background: "var(--accent-soft)", color: "var(--accent)",
+              border: "1px solid var(--accent-line)", fontWeight: 600,
+            }}>L{u.level}</span>
+          </div>
+          <div style={{ marginTop: 5, height: 3, background: "var(--line-soft)", borderRadius: 2, overflow: "hidden" }}>
+            <div style={{ width: `${xpPct * 100}%`, height: "100%",
+              background: "linear-gradient(90deg, var(--accent), color-mix(in oklch, var(--accent) 70%, white))" }} />
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4, fontSize: 10, color: "var(--ink-3)" }}>
+            <span>{u.status?.emoji}</span>
+            <span>{u.status?.label}</span>
+            <span style={{ color: "var(--ink-4)" }}>·</span>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
+              <span style={{ width: 9, height: 9, color: "var(--due)" }}><Ic.Flame /></span>
+              <span className="tabular">{u.currentStreak}</span>
+            </span>
+          </div>
+        </div>
+        <span style={{ width: 11, height: 11, color: "var(--ink-3)",
+          transform: open ? "rotate(180deg)" : "none", transition: "transform 160ms" }}>
+          <Ic.ChevD />
+        </span>
+      </button>
+
+      {open && (
+        <div style={{
+          position: "absolute", bottom: "calc(100% + 6px)", left: 0, right: 0,
+          background: "var(--surface)", border: "1px solid var(--line)",
+          borderRadius: 10, boxShadow: "var(--shadow-lg)", padding: 6, zIndex: 40,
+          animation: "ll-fade-in 140ms ease",
+        }}>
+          <ProfileMenuRow icon={Ic.Sparkle} label="Set status"   hint={u.status?.label} />
+          <ProfileMenuRow icon={Ic.Note}    label="My notes"     hint="all subjects" />
+          <ProfileMenuRow icon={Ic.Chart}   label="View profile" hint={`L${u.level} · ${u.xp} XP`} />
+          <ProfileMenuRow icon={Ic.Cog}     label="Settings"     hint="preferences" />
+          <div style={{ height: 1, background: "var(--line-soft)", margin: "4px 6px" }} />
+          <ProfileMenuRow icon={Ic.Logout}  label="Sign out"     tone="danger" />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ProfileMenuRow({ icon: I, label, hint, tone }) {
+  return (
+    <button style={{
+      display: "flex", alignItems: "center", gap: 9, width: "100%",
+      padding: "7px 10px", borderRadius: 6,
+      color: tone === "danger" ? "var(--due)" : "var(--ink-2)",
+      fontSize: "var(--fs-13)", textAlign: "left",
+    }}
+      onMouseEnter={e => e.currentTarget.style.background = "var(--surface-2)"}
+      onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+      <span style={{ width: 13, height: 13, color: tone === "danger" ? "var(--due)" : "var(--ink-3)" }}><I /></span>
+      <span style={{ flex: 1 }}>{label}</span>
+      {hint && <span className="mono" style={{ fontSize: 10, color: "var(--ink-4)" }}>{hint}</span>}
+    </button>
+  );
+}
+
 const WORKFLOWS = [
-  { id: "study",   label: "Deep study",  hint: "Reading focus, longer sessions" },
-  { id: "rev",     label: "Revision",    hint: "Recall, summaries, spaced reps" },
-  { id: "exam",    label: "Exam prep",   hint: "Timer, PYQs, weak-area drills" },
+  { id: "study",   label: "Deep study",     hint: "Reading focus, longer sessions" },
+  { id: "rev",     label: "Revision",       hint: "Recall, summaries, spaced reps" },
+  { id: "exam",    label: "Exam prep",      hint: "Timer, PYQs, weak-area drills" },
   { id: "quick",   label: "Quick practice", hint: "10-min sprints" },
 ];
+
 function WorkflowSwitch({ value, onChange }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
@@ -211,7 +325,6 @@ function WorkflowSwitch({ value, onChange }) {
   );
 }
 
-// ── Top bar ────────────────────────────────────────────────────────────────
 function TopBar({ crumbs, right, theme, setTheme, onCmd }) {
   return (
     <header style={{
@@ -271,7 +384,6 @@ function TopBar({ crumbs, right, theme, setTheme, onCmd }) {
   );
 }
 
-// ── Command palette ────────────────────────────────────────────────────────
 function CommandBar({ open, onClose, subjects, setRoute }) {
   const [q, setQ] = useState("");
   const ref = useRef(null);
@@ -280,12 +392,12 @@ function CommandBar({ open, onClose, subjects, setRoute }) {
   const items = useMemo(() => {
     const base = [
       ...subjects.map(s => ({ kind: "Subject", label: s.name, hint: s.title, action: () => setRoute({ view: "subject", id: s.id }) })),
-      { kind: "View", label: "Today",     hint: "Dashboard",  action: () => setRoute({ view: "dashboard" }) },
-      { kind: "View", label: "Library",   hint: "All resources", action: () => setRoute({ view: "library" }) },
-      { kind: "View", label: "Calendar",  hint: "Week & term", action: () => setRoute({ view: "calendar" }) },
-      { kind: "Action", label: "Start 25-min focus", hint: "Pomodoro · current subject" },
-      { kind: "Action", label: "New annotation",     hint: "Highlight selected passage" },
-      { kind: "Action", label: "Generate quiz",      hint: "From current notes" },
+      { kind: "View",   label: "Today",               hint: "Dashboard",             action: () => setRoute({ view: "dashboard" }) },
+      { kind: "View",   label: "Library",              hint: "All resources",         action: () => setRoute({ view: "library" }) },
+      { kind: "View",   label: "Calendar",             hint: "Week & term",           action: () => setRoute({ view: "calendar" }) },
+      { kind: "Action", label: "Start 25-min focus",   hint: "Pomodoro · current subject" },
+      { kind: "Action", label: "New annotation",       hint: "Highlight selected passage" },
+      { kind: "Action", label: "Generate quiz",        hint: "From current notes" },
     ];
     if (!q) return base.slice(0, 8);
     return base.filter(i => (i.label + i.hint).toLowerCase().includes(q.toLowerCase())).slice(0, 8);
@@ -336,7 +448,6 @@ function CommandBar({ open, onClose, subjects, setRoute }) {
   );
 }
 
-// ── Tiny primitives ───────────────────────────────────────────────────────
 function Pill({ children, tone = "neutral", subject, style }) {
   const map = {
     neutral: { bg: "var(--surface-2)", c: "var(--ink-2)", b: "var(--line)" },
@@ -409,16 +520,4 @@ function SectionTitle({ kicker, title, action, style }) {
   );
 }
 
-// expose
-export {
-  Ic,
-  SUBJECT_ICONS,
-  Sidebar,
-  TopBar,
-  CommandBar,
-  Pill,
-  Btn,
-  Card,
-  SectionTitle,
-  WORKFLOWS,
-};
+export { Ic, SUBJECT_ICONS, Sidebar, TopBar, CommandBar, Pill, Btn, Card, SectionTitle, WORKFLOWS };

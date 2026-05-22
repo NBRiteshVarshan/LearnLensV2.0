@@ -194,3 +194,8 @@ a { color: inherit; text-decoration: none; }
 [data-subject="lit"]   { --s: var(--lit);   --s-soft: var(--lit-soft);   --s-line: var(--lit-line); }
 [data-subject="phys"]  { --s: var(--phys);  --s-soft: var(--phys-soft);  --s-line: var(--phys-line); }
 [data-subject="hist"]  { --s: var(--hist);  --s-soft: var(--hist-soft);  --s-line: var(--hist-line); }
+
+@keyframes ll-shimmer {
+  from { background-position: 200% 0; }
+  to   { background-position: -200% 0; }
+}

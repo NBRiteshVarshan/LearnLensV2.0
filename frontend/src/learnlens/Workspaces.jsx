@@ -1,6 +1,6 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
-  SUBJECTS,
+  useAppData,
   MATH_UNITS, MATH_THEOREMS, MATH_PROBLEMS,
   PROG_FILES, PROG_TERMINAL, PROG_CONCEPTS,
   BIO_DIAGRAMS, BIO_GLOSSARY,
@@ -8,8 +8,119 @@ import {
 } from "./data.js";
 import { Card, Pill, Btn, SectionTitle, Ic, SUBJECT_ICONS } from "./Shell.jsx";
 
+// ── Add-content menu used by every subject header ──────────────────────────
+const ADD_KINDS = [
+  { id: "lecture",  label: "Lecture",        hint: "Schedule a class or upload slides",  icon: "Video" },
+  { id: "homework", label: "Homework",        hint: "Assignment with a due date",         icon: "Note" },
+  { id: "reading",  label: "Reading",         hint: "PDF, textbook chapter, or article",  icon: "Books" },
+  { id: "note",     label: "Note",            hint: "Free-form study note",               icon: "Note" },
+  { id: "quiz",     label: "Quiz",            hint: "Generate from notes via AI Tools",   icon: "Quiz" },
+  { id: "deck",     label: "Flashcard deck",  hint: "Spaced-repetition deck",             icon: "Card" },
+];
+
+function AddContentMenu({ subject, onAdd }) {
+  const [open, setOpen] = useState(false);
+  const [stage, setStage] = useState(null);
+  const [draft, setDraft] = useState({ title: "", due: "" });
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = e => { if (ref.current && !ref.current.contains(e.target)) { setOpen(false); setStage(null); } };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [open]);
+
+  const submit = () => {
+    if (!draft.title.trim() || !stage) return;
+    onAdd?.({ kind: stage, ...draft, subj: subject.id });
+    setOpen(false); setStage(null); setDraft({ title: "", due: "" });
+  };
+
+  return (
+    <div ref={ref} style={{ position: "relative" }}>
+      <Btn icon={Ic.Plus} variant="primary" onClick={() => setOpen(o => !o)}>Add</Btn>
+      {open && (
+        <div style={{
+          position: "absolute", top: "calc(100% + 6px)", right: 0,
+          background: "var(--surface)", border: "1px solid var(--line)",
+          borderRadius: 10, boxShadow: "var(--shadow-lg)", padding: 0, zIndex: 30,
+          minWidth: 320, animation: "ll-fade-in 140ms ease",
+        }}>
+          {!stage ? (
+            <div>
+              <div style={{ padding: "10px 14px", borderBottom: "1px solid var(--line)",
+                display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <div className="label-xs">Add to {subject.name}</div>
+              </div>
+              <div style={{ padding: 4 }}>
+                {ADD_KINDS.map(k => {
+                  const I = Ic[k.icon];
+                  return (
+                    <button key={k.id} onClick={() => setStage(k.id)} style={{
+                      display: "flex", alignItems: "flex-start", gap: 10, width: "100%",
+                      padding: "9px 10px", borderRadius: 6, textAlign: "left",
+                    }}
+                      onMouseEnter={e => e.currentTarget.style.background = "var(--surface-2)"}
+                      onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                      <span style={{
+                        width: 26, height: 26, borderRadius: 6,
+                        background: "var(--s-soft)", color: "var(--s)",
+                        display: "grid", placeItems: "center", flexShrink: 0,
+                      }}>{I && <span style={{ width: 13, height: 13 }}><I /></span>}</span>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: "var(--fs-13)", fontWeight: 500 }}>{k.label}</div>
+                        <div style={{ fontSize: 11, color: "var(--ink-3)", marginTop: 1 }}>{k.hint}</div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            <div>
+              <div style={{ padding: "10px 14px", borderBottom: "1px solid var(--line)",
+                display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <div className="label-xs">New {ADD_KINDS.find(k => k.id === stage).label.toLowerCase()}</div>
+                <button onClick={() => setStage(null)} style={{ fontSize: 11, color: "var(--accent)" }}>← back</button>
+              </div>
+              <div style={{ padding: 14, display: "flex", flexDirection: "column", gap: 10 }}>
+                <input autoFocus value={draft.title} onChange={e => setDraft(d => ({ ...d, title: e.target.value }))}
+                  placeholder={
+                    stage === "lecture"  ? "Lecture title — e.g. Algorithms 15" :
+                    stage === "homework" ? "Assignment — e.g. Pset 5" :
+                    stage === "reading"  ? "Reading — e.g. CLRS Ch. 14" :
+                    stage === "note"     ? "Note title" :
+                    stage === "quiz"     ? "Quiz topic — e.g. RB-tree invariants" :
+                                            "Deck name — e.g. Functional groups"
+                  }
+                  onKeyDown={e => e.key === "Enter" && submit()}
+                  style={{
+                    padding: "9px 11px", border: "1px solid var(--line)", borderRadius: 6,
+                    fontSize: "var(--fs-14)", background: "var(--surface)", color: "var(--ink)",
+                  }} />
+                {(stage === "homework" || stage === "lecture" || stage === "reading") && (
+                  <input value={draft.due} onChange={e => setDraft(d => ({ ...d, due: e.target.value }))}
+                    placeholder={stage === "lecture" ? "When — e.g. Tue 14:00" : "Due — e.g. Friday 23:59"}
+                    style={{
+                      padding: "9px 11px", border: "1px solid var(--line)", borderRadius: 6,
+                      fontSize: "var(--fs-13)", background: "var(--surface)", color: "var(--ink)",
+                    }} />
+                )}
+                <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                  <Btn variant="ghost" onClick={() => { setOpen(false); setStage(null); }}>Cancel</Btn>
+                  <Btn variant="primary" icon={Ic.Plus} onClick={submit}>Add to {subject.name}</Btn>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Shared subject header ──────────────────────────────────────────────────
-function SubjectHeader({ s, tabs, tab, setTab }) {
+function SubjectHeader({ s, tabs, tab, setTab, recent, onAdd }) {
   const I = SUBJECT_ICONS[s.id];
   return (
     <div data-subject={s.id} style={{
@@ -49,9 +160,41 @@ function SubjectHeader({ s, tabs, tab, setTab }) {
         <div style={{ display: "flex", gap: 8 }}>
           <Btn icon={Ic.Timer}>Start session</Btn>
           <Btn icon={Ic.Bookmark} variant="ghost">Pin</Btn>
-          <Btn icon={Ic.Plus} variant="primary">Add resource</Btn>
+          <AddContentMenu subject={s} onAdd={onAdd} />
         </div>
       </div>
+
+      {recent && recent.length > 0 && (
+        <div style={{
+          display: "flex", alignItems: "center", gap: 8,
+          maxWidth: 1400, margin: "12px auto 0", padding: "8px 12px",
+          background: "var(--surface)", border: "1px solid var(--accent-line)",
+          borderRadius: 8, fontSize: 11.5,
+        }}>
+          <span style={{
+            width: 18, height: 18, borderRadius: 4,
+            background: "var(--accent-soft)", color: "var(--accent)",
+            display: "grid", placeItems: "center", flexShrink: 0,
+          }}>
+            <span style={{ width: 11, height: 11 }}><Ic.Sparkle /></span>
+          </span>
+          <span className="label-xs" style={{ marginBottom: 0 }}>Just added</span>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", flex: 1 }}>
+            {recent.slice(-4).map((r, i) => (
+              <span key={i} style={{
+                display: "inline-flex", alignItems: "center", gap: 5,
+                padding: "2px 8px", borderRadius: 100,
+                background: "var(--accent-soft)", color: "var(--accent)",
+                border: "1px solid var(--accent-line)",
+                fontSize: 11, fontWeight: 500,
+              }}>
+                <span style={{ textTransform: "uppercase", letterSpacing: "0.06em", fontSize: 9.5, fontWeight: 600, color: "var(--ink-3)" }}>{r.kind}</span>
+                {r.title}{r.due && <span style={{ color: "var(--ink-3)" }}>· {r.due}</span>}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div style={{ display: "flex", gap: 4, marginTop: 22, maxWidth: 1400, margin: "22px auto 0" }}>
         {tabs.map(t => {
@@ -83,7 +226,7 @@ function SubjectHeader({ s, tabs, tab, setTab }) {
 // ═══════════════════════════════════════════════════════════════════════════
 // MATHEMATICS WORKSPACE — formula/theorem-centric, grid-precise
 // ═══════════════════════════════════════════════════════════════════════════
-function MathWorkspace({ s }) {
+function MathWorkspace({ s, recent, onAdd }) {
   const [tab, setTab] = useState("problems");
   const tabs = [
     { id: "problems", label: "Problem sets", count: 8 },
@@ -95,7 +238,7 @@ function MathWorkspace({ s }) {
 
   return (
     <div data-subject={s.id}>
-      <SubjectHeader s={s} tabs={tabs} tab={tab} setTab={setTab} />
+      <SubjectHeader s={s} tabs={tabs} tab={tab} setTab={setTab} recent={recent} onAdd={onAdd} />
       <div style={{ padding: "24px 32px 60px", maxWidth: 1400, margin: "0 auto" }}>
         {/* Unit ribbon */}
         <UnitRibbon units={MATH_UNITS} />
@@ -249,7 +392,7 @@ function TheoremBlock({ t }) {
 // ═══════════════════════════════════════════════════════════════════════════
 // PROGRAMMING WORKSPACE — IDE/terminal-oriented
 // ═══════════════════════════════════════════════════════════════════════════
-function ProgWorkspace({ s }) {
+function ProgWorkspace({ s, recent, onAdd }) {
   const [tab, setTab] = useState("code");
   const tabs = [
     { id: "code",      label: "Lab workspace" },
@@ -261,7 +404,7 @@ function ProgWorkspace({ s }) {
 
   return (
     <div data-subject={s.id}>
-      <SubjectHeader s={s} tabs={tabs} tab={tab} setTab={setTab} />
+      <SubjectHeader s={s} tabs={tabs} tab={tab} setTab={setTab} recent={recent} onAdd={onAdd} />
       <div style={{ padding: "20px 32px 60px", maxWidth: 1400, margin: "0 auto" }}>
         {/* IDE-style layout */}
         <Card padded={false} style={{ overflow: "hidden", marginBottom: 16 }}>
@@ -491,7 +634,7 @@ function ConceptCard({ c }) {
 // ═══════════════════════════════════════════════════════════════════════════
 // BIOLOGY WORKSPACE — diagram-heavy
 // ═══════════════════════════════════════════════════════════════════════════
-function BioWorkspace({ s }) {
+function BioWorkspace({ s, recent, onAdd }) {
   const [tab, setTab] = useState("diagrams");
   const tabs = [
     { id: "diagrams", label: "Diagrams", count: 24 },
@@ -502,7 +645,7 @@ function BioWorkspace({ s }) {
   ];
   return (
     <div data-subject={s.id}>
-      <SubjectHeader s={s} tabs={tabs} tab={tab} setTab={setTab} />
+      <SubjectHeader s={s} tabs={tabs} tab={tab} setTab={setTab} recent={recent} onAdd={onAdd} />
       <div style={{ padding: "24px 32px 60px", maxWidth: 1400, margin: "0 auto" }}>
         <SectionTitle kicker="Active unit" title="Unit 06 · Membrane transport"
           action={<div style={{ display: "flex", gap: 6 }}>
@@ -745,7 +888,7 @@ function ReadingBlock() {
 // ═══════════════════════════════════════════════════════════════════════════
 // LITERATURE WORKSPACE — reading/annotation-centric
 // ═══════════════════════════════════════════════════════════════════════════
-function LitWorkspace({ s }) {
+function LitWorkspace({ s, recent, onAdd }) {
   const [tab, setTab] = useState("text");
   const tabs = [
     { id: "text",     label: "Text" },
@@ -757,7 +900,7 @@ function LitWorkspace({ s }) {
 
   return (
     <div data-subject={s.id}>
-      <SubjectHeader s={s} tabs={tabs} tab={tab} setTab={setTab} />
+      <SubjectHeader s={s} tabs={tabs} tab={tab} setTab={setTab} recent={recent} onAdd={onAdd} />
       <div style={{ padding: "24px 32px 60px", maxWidth: 1400, margin: "0 auto" }}>
         <div style={{ display: "grid", gridTemplateColumns: "200px 1fr 320px", gap: 18 }}>
           {/* Left: outline */}
@@ -898,7 +1041,7 @@ function LitWorkspace({ s }) {
 // ═══════════════════════════════════════════════════════════════════════════
 // GENERIC (phys, chem, hist) — uses dashboard-style layout
 // ═══════════════════════════════════════════════════════════════════════════
-function GenericSubject({ s }) {
+function GenericSubject({ s, recent, onAdd }) {
   const [tab, setTab] = useState("notes");
   const tabs = [
     { id: "notes",      label: "Notes" },
@@ -908,7 +1051,7 @@ function GenericSubject({ s }) {
   ];
   return (
     <div data-subject={s.id}>
-      <SubjectHeader s={s} tabs={tabs} tab={tab} setTab={setTab} />
+      <SubjectHeader s={s} tabs={tabs} tab={tab} setTab={setTab} recent={recent} onAdd={onAdd} />
       <div style={{ padding: "24px 32px 60px", maxWidth: 1400, margin: "0 auto" }}>
         <div style={{
           padding: 32, border: "1px dashed var(--line)", borderRadius: "var(--r-lg)",
@@ -926,13 +1069,19 @@ function GenericSubject({ s }) {
 
 // Subject router
 function SubjectRouter({ id }) {
-  const s = SUBJECTS.find(x => x.id === id);
+  const d = useAppData();
+  const s = d.subjects.find(x => x.id === id);
+  const [recents, setRecents] = useState({});
   if (!s) return null;
-  if (s.id === "math") return <MathWorkspace s={s} />;
-  if (s.id === "prog") return <ProgWorkspace s={s} />;
-  if (s.id === "bio")  return <BioWorkspace s={s} />;
-  if (s.id === "lit")  return <LitWorkspace s={s} />;
-  return <GenericSubject s={s} />;
+  const onAdd = (item) => {
+    setRecents(rec => ({ ...rec, [s.id]: [...(rec[s.id] || []), item] }));
+  };
+  const recent = recents[s.id] || [];
+  if (s.id === "math") return <MathWorkspace s={s} recent={recent} onAdd={onAdd} />;
+  if (s.id === "prog") return <ProgWorkspace s={s} recent={recent} onAdd={onAdd} />;
+  if (s.id === "bio")  return <BioWorkspace  s={s} recent={recent} onAdd={onAdd} />;
+  if (s.id === "lit")  return <LitWorkspace  s={s} recent={recent} onAdd={onAdd} />;
+  return <GenericSubject s={s} recent={recent} onAdd={onAdd} />;
 }
 
 export {

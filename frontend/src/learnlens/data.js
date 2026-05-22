@@ -1,5 +1,43 @@
-
 // Mock data — populates the entire LearnLens academic OS.
+//
+// v2: components consume data through `useAppData()`, which returns either
+// the rich demo payload or empty defaults based on `window.__LL_DEMO`.
+// This makes the app behave like a real product on first run, not a demo.
+
+// ── User profile ────────────────────────────────────────────────────────────
+const USER = {
+  name: "Aarav Mehta",
+  handle: "@aarav.m",
+  initials: "AM",
+  email: "aarav.m@learnlens.app",
+  role: "Year 2 · BSc Computer Science",
+  joined: "Jan 2026",
+  level: 7,
+  xp: 2840,
+  xpForNext: 3500,
+  longestStreak: 21,
+  currentStreak: 12,
+  status: { id: "focused", label: "Focused", emoji: "🎯" },
+  avatarHue: 265,
+};
+
+const FRIENDS = [
+  { id: "f1", name: "Ishaan Roy",     handle: "ishaan.r",    initials: "IR", status: "studying", subject: "math",  shared: ["Real Analysis"], lastSeen: "now" },
+  { id: "f2", name: "Priya Nair",     handle: "priya.n",     initials: "PN", status: "online",   subject: "bio",   shared: ["Membrane transport"], lastSeen: "2m" },
+  { id: "f3", name: "Daniel Okonkwo", handle: "dan.o",       initials: "DO", status: "focus",    subject: "prog",  shared: ["Algorithms", "Lab 7"], lastSeen: "12m" },
+  { id: "f4", name: "Mia Salgado",    handle: "mia.s",       initials: "MS", status: "offline",  subject: "lit",   shared: [], lastSeen: "3h" },
+];
+
+const FRIEND_REQUESTS = [
+  { id: "r1", name: "Kenji Park",     initials: "KP", mutual: 3, ctx: "From CS 168 study group" },
+  { id: "r2", name: "Lara Castelli",  initials: "LC", mutual: 1, ctx: "Mentioned in a shared note" },
+];
+
+const FRIEND_SUGGESTIONS = [
+  { id: "s1", name: "Yusuf Akar",    initials: "YA", ctx: "Same course · MATH 241", mutual: 5 },
+  { id: "s2", name: "Hana Goto",     initials: "HG", ctx: "Studying Mrs Dalloway",  mutual: 2 },
+  { id: "s3", name: "Tomás Vidal",   initials: "TV", ctx: "Lab partner suggestion",  mutual: 4 },
+];
 
 const SUBJECTS = [
   {
@@ -76,7 +114,6 @@ const TODAY_TASKS = [
 ];
 
 const WEEK_FOCUS = [
-  // hours per subject per day, Mon-Sun
   { d: "M", math: 1.4, prog: 2.1, bio: 0.6, lit: 0.8, phys: 0.5, chem: 0 },
   { d: "T", math: 2.0, prog: 1.0, bio: 1.1, lit: 0,   phys: 1.2, chem: 0.4 },
   { d: "W", math: 0.6, prog: 2.4, bio: 0.8, lit: 1.4, phys: 0,   chem: 0.7 },
@@ -178,25 +215,88 @@ const LIT_PASSAGE = [
 
 const LIT_ANNOTATIONS = [
   { line: 0, color: "thesis",  note: "Mortality leitmotif — recurs at p. 47, p. 132. Use for opening." },
-  { line: 2, color: "image",   note: "Synaesthesia ‘fresh as if issued to children’ — sensory dislocation." },
+  { line: 2, color: "image",   note: "Synaesthesia 'fresh as if issued to children' — sensory dislocation." },
   { line: 3, color: "thesis",  note: "Plunge as transition between interior / exterior selves — core for §2." },
   { line: 4, color: "voice",   note: "Free indirect — narrator slips into Clarissa mid-sentence." },
 ];
 
-// expose
+// ── Library demo data ──────────────────────────────────────────────────────
+const LIB_DEMO = [
+  { kind: "pdf",   subj: "math", title: "Spivak — Calculus, Ch. 7 (annotated)",  meta: "412 p · 38 highlights", t: "2h ago", tag: "Textbook", diff: "II" },
+  { kind: "video", subj: "prog", title: "Lecture 13 — Red-black trees",          meta: "01:24:11 · watched 78%", t: "Yesterday", tag: "Lecture",  diff: "II" },
+  { kind: "note",  subj: "bio",  title: "Membrane transport — lab notes",         meta: "8 pages · last edit 12 min ago", t: "Today", tag: "Notes", diff: "I" },
+  { kind: "code",  subj: "prog", title: "rbtree.rs (lab fork)",                   meta: "247 LOC · 1 failing test", t: "08:42", tag: "Lab",     diff: "III" },
+  { kind: "pdf",   subj: "lit",  title: "Mrs Dalloway — Hogarth 1925 (scan)",     meta: "180 p · 24 annotations", t: "Yesterday", tag: "Primary text", diff: "II" },
+  { kind: "quiz",  subj: "math", title: "Sequences & limits — 25 Q",              meta: "Last attempt 22 / 25", t: "Mon", tag: "Quiz", diff: "II" },
+  { kind: "card",  subj: "bio",  title: "Membrane transport — 28 cards",          meta: "87% recall · 6 weak", t: "Sun",   tag: "Deck", diff: "I" },
+  { kind: "note",  subj: "phys", title: "Lagrangian derivations — set 4",         meta: "5 pages · scratch", t: "Sat", tag: "Working", diff: "III" },
+];
+
+// ── Calendar demo events ───────────────────────────────────────────────────
+const CAL_DEMO = [
+  { d: 0, h: 14, l: 1.5, subj: "prog", kind: "Lecture",   title: "Algorithms 13 — RB-trees" },
+  { d: 0, h: 16, l: 2,   subj: "prog", kind: "Lab",       title: "RB-tree implementation" },
+  { d: 1, h: 9,  l: 1.5, subj: "math", kind: "Lecture",   title: "Real analysis — §4" },
+  { d: 1, h: 11, l: 1,   subj: "bio",  kind: "Lecture",   title: "Membrane transport" },
+  { d: 1, h: 18, l: 1.5, subj: "math", kind: "Tutorial",  title: "Pset 4 walkthrough" },
+  { d: 2, h: 14, l: 1.5, subj: "prog", kind: "Lecture",   title: "Algorithms 14" },
+  { d: 3, h: 10, l: 1,   subj: "phys", kind: "Lecture",   title: "Lagrangian formalism" },
+  { d: 4, h: 17, l: 2,   subj: "lit",  kind: "Deadline",  title: "Essay due — Woolf" },
+];
+
+// ── Inbox demo messages ────────────────────────────────────────────────────
+const INBOX_DEMO = [
+  { from: "Prof. A. Kowalski",  subj: "math", title: "Pset 4 — note on problem 4.5",  t: "08:42", unread: true,  prev: "Several students have asked about the contractive sequence definition. The key is that the contraction constant must be strictly less than one…" },
+  { from: "Dr. M. Tanaka",      subj: "prog", title: "Lab 7 deadline extended",       t: "Yest",  unread: true,  prev: "Given the Cargo registry outage on Tuesday, the deadline for the persistent RB-tree lab is now pushed to Friday 23:59." },
+  { from: "LearnLens",          subj: null,   title: "Weekly summary ready",          t: "Yest",  unread: true,  prev: "You logged 14h 22m this week — a personal best. Your weakest area is Krebs cycle (recall 64%)…" },
+];
+
+// ── Live AI activity feed ──────────────────────────────────────────────────
+const AI_ACTIVITY = [
+  { t: -2,  kind: "embed",   subj: "math", text: "Indexed 4 new pages from Spivak Ch. 7",                meta: "12 chunks · 0.84s" },
+  { t: -14, kind: "weak",    subj: "bio",  text: "Detected weak area: Krebs cycle (recall ↓ to 64%)",   meta: "from 4 reviews" },
+  { t: -32, kind: "answer",  subj: "prog", text: "Answered: \"why does the uncle-red case recurse upward?\"", meta: "RAG · 6 chunks" },
+  { t: -58, kind: "quiz",    subj: "math", text: "Generated 10-Q quiz · Cauchy sequences",              meta: "PYQ mode · medium" },
+  { t: -120,kind: "summary", subj: "lit",  text: "Summarised pp. 47–88 of Mrs Dalloway",                meta: "412 words → 84" },
+];
+
+// ── App data hook ───────────────────────────────────────────────────────────
+// Components subscribe via `useAppData()` to get the slice for the current mode.
+// `window.__LL_DEMO=true` → full populated dataset.
+// `window.__LL_DEMO=false` → null/empty defaults, realistic first-run state.
+function useAppData() {
+  const demo = !!window.__LL_DEMO;
+  if (demo) {
+    return {
+      demo: true, user: USER,
+      subjects: SUBJECTS, activity: ACTIVITY, todayTasks: TODAY_TASKS,
+      weekFocus: WEEK_FOCUS, friends: FRIENDS, requests: FRIEND_REQUESTS,
+      suggestions: FRIEND_SUGGESTIONS, aiActivity: AI_ACTIVITY,
+      calEvents: CAL_DEMO,
+      inbox: INBOX_DEMO,
+      libItems: LIB_DEMO,
+    };
+  }
+  return {
+    demo: false, user: USER,
+    subjects: window.__LL_USER_SUBJECTS || [],
+    activity: [], todayTasks: window.__LL_USER_TASKS || [],
+    weekFocus: WEEK_FOCUS.map(d => ({ d: d.d, math: 0, prog: 0, bio: 0, lit: 0, phys: 0, chem: 0 })),
+    friends: FRIENDS,
+    requests: FRIEND_REQUESTS, suggestions: FRIEND_SUGGESTIONS,
+    aiActivity: [],
+    calEvents: window.__LL_USER_EVENTS || [],
+    inbox: window.__LL_USER_INBOX || [],
+    libItems: window.__LL_USER_LIB || [],
+  };
+}
+
 export {
-  SUBJECTS,
-  ACTIVITY,
-  TODAY_TASKS,
-  WEEK_FOCUS,
-  MATH_UNITS,
-  MATH_THEOREMS,
-  MATH_PROBLEMS,
-  PROG_FILES,
-  PROG_TERMINAL,
-  PROG_CONCEPTS,
-  BIO_DIAGRAMS,
-  BIO_GLOSSARY,
-  LIT_PASSAGE,
-  LIT_ANNOTATIONS,
+  useAppData,
+  USER, SUBJECTS, FRIENDS, FRIEND_REQUESTS, FRIEND_SUGGESTIONS,
+  ACTIVITY, TODAY_TASKS, WEEK_FOCUS, AI_ACTIVITY,
+  MATH_UNITS, MATH_THEOREMS, MATH_PROBLEMS,
+  PROG_FILES, PROG_TERMINAL, PROG_CONCEPTS,
+  BIO_DIAGRAMS, BIO_GLOSSARY,
+  LIT_PASSAGE, LIT_ANNOTATIONS,
 };
