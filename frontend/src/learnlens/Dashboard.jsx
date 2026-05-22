@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useAppData } from "./data.js";
-import { Card, Pill, Btn, SectionTitle, Ic, SUBJECT_ICONS } from "./Shell.jsx";
+import { Card, Pill, Btn, SectionTitle, Ic, SUBJECT_ICONS, getCustomColorVars } from "./Shell.jsx";
+import { useTimer, ProgressRing, fmtTimer } from "./StudyTimer.jsx";
+import { useAnalytics } from "./useStudyAnalytics.jsx";
 
 function useNow(intervalMs = 1000) {
   const [now, setNow] = useState(() => new Date());
@@ -32,7 +34,34 @@ function Dashboard({ setRoute, workflow, onAddSubject }) {
 
 function EmptyDashboard({ user, onAddSubject, setRoute }) {
   const now = useNow(1000);
+  const analytics = useAnalytics();
   const u = user;
+
+  const previewRows = [
+    {
+      label: "Focus this week",
+      value: analytics?.weekFocusSecs > 0 ? analytics.weekFocusLabel : "—",
+      sub:   analytics?.weekFocusSecs > 0 ? analytics.weekDeltaLabel : "rolls up your sessions",
+    },
+    {
+      label: "Current streak",
+      value: analytics?.streak > 0 ? `${analytics.streak} d` : "0 d",
+      sub:   analytics?.streak > 0
+        ? `best: ${analytics.longestStreak} d`
+        : "extends every study day",
+    },
+    {
+      label: "Recall avg",
+      value: analytics?.recallAvg != null ? `${analytics.recallAvg}%` : "—",
+      sub:   analytics?.recallAvg != null ? analytics.recallTrend : "from flashcards + quizzes",
+    },
+    {
+      label: "Real-time AI",
+      value: analytics?.latestAI?.label || "—",
+      sub:   "what the AI is processing",
+    },
+  ];
+
   return (
     <div style={{ padding: "40px 32px 60px", maxWidth: 1100, margin: "0 auto" }}>
       <div style={{ marginBottom: 32 }}>
@@ -63,24 +92,29 @@ function EmptyDashboard({ user, onAddSubject, setRoute }) {
       <Card padded={false}>
         <div style={{ padding: "14px 18px", borderBottom: "1px solid var(--line)", display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
           <div>
-            <div className="label-xs">What will appear here</div>
-            <div style={{ fontSize: "var(--fs-18)", fontWeight: 500, letterSpacing: "-0.01em" }}>Your live study state</div>
+            <div className="label-xs">Live study state</div>
+            <div style={{ fontSize: "var(--fs-18)", fontWeight: 500, letterSpacing: "-0.01em" }}>Your analytics — always real</div>
           </div>
-          <span className="mono" style={{ fontSize: 11, color: "var(--ink-3)" }}>preview</span>
+          <span style={{
+            display: "inline-flex", alignItems: "center", gap: 4,
+            fontSize: 10.5, color: "var(--ok)", fontWeight: 500,
+          }}>
+            <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--ok)",
+              animation: "ll-pulse-soft 1.6s infinite" }} />
+            live
+          </span>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 0 }}>
-          {[
-            ["Focus this week",  "—",   "rolls up your sessions"],
-            ["Current streak",   "0 d", "extends every study day"],
-            ["Recall avg",       "—",   "from flashcards + quizzes"],
-            ["Real-time AI",     "—",   "what the AI is processing"],
-          ].map((row, i) => (
+          {previewRows.map((row, i) => (
             <div key={i} style={{
               padding: "16px 18px", borderRight: i < 3 ? "1px solid var(--line-soft)" : "none",
             }}>
-              <div className="label-xs" style={{ marginBottom: 4 }}>{row[0]}</div>
-              <div style={{ fontFamily: "var(--font-serif)", fontSize: 24, color: "var(--ink-3)", marginBottom: 2 }}>{row[1]}</div>
-              <div style={{ fontSize: 11.5, color: "var(--ink-4)" }}>{row[2]}</div>
+              <div className="label-xs" style={{ marginBottom: 4 }}>{row.label}</div>
+              <div style={{
+                fontFamily: "var(--font-serif)", fontSize: 24, marginBottom: 2,
+                color: row.value === "—" ? "var(--ink-3)" : "var(--ink)",
+              }}>{row.value}</div>
+              <div style={{ fontSize: 11.5, color: "var(--ink-4)" }}>{row.sub}</div>
             </div>
           ))}
         </div>
@@ -122,10 +156,17 @@ function OnboardCard({ n, title, hint, cta, onClick, active }) {
 
 function LiveDashboard({ data, setRoute, workflow, onAddSubject }) {
   const now = useNow(1000);
+  const analytics = useAnalytics();
   const u = data.user;
   const wlabel = ({ study: "deep study", rev: "revision", exam: "exam prep", quick: "quick practice" })[workflow];
   const dueCount = data.todayTasks.filter(t => !t.done).length;
   const scheduledMin = data.todayTasks.reduce((acc, t) => acc + parseInt(t.est) || 0, 0);
+
+  // Subject names for "coming due" delta
+  const dueSubjNames = (() => {
+    const ids = [...new Set(data.todayTasks.filter(t => !t.done).map(t => t.subj))].slice(0, 3);
+    return ids.map(id => data.subjects.find(x => x.id === id)?.name || id).join(" · ") || "nothing due";
+  })();
 
   return (
     <div style={{ padding: "28px 32px 60px", maxWidth: 1400, margin: "0 auto" }}>
@@ -172,18 +213,38 @@ function LiveDashboard({ data, setRoute, workflow, onAddSubject }) {
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 12, marginBottom: 22 }}>
-        <StatCell kicker="Focus this week" big="14h 22m" delta="+1h 40m vs last week" deltaTone="ok"
-          spark={[1.4, 2.0, 0.6, 1.8, 0, 0.8, 1.2]} />
-        <StatCell kicker="Current streak" big={`${u.currentStreak} days`}
-          delta={`Personal best: ${u.longestStreak}`} deltaTone="ok" icon={Ic.Flame} />
-        <StatCell kicker="Recall (7d avg)" big="84%" delta="−3% — weak: Krebs cycle" deltaTone="warn" />
-        <StatCell kicker="Coming due" big={`${dueCount} items`} delta="Math · Lit · Phys" deltaTone="due" />
+        <StatCell
+          kicker="Focus this week"
+          big={analytics?.weekFocusLabel || "—"}
+          delta={analytics?.weekDeltaLabel || "rolls up your sessions"}
+          deltaTone={analytics?.weekDeltaTone || "ok"}
+          spark={analytics?.weekFocusSecs > 0 ? analytics.weekDailySecs.map(s => s / 3600) : undefined}
+        />
+        <StatCell
+          kicker="Current streak"
+          big={analytics ? `${analytics.streak} d` : "0 d"}
+          delta={analytics?.streak > 0 ? `best: ${analytics.longestStreak} d` : "extends every study day"}
+          deltaTone="ok"
+          icon={Ic.Flame}
+        />
+        <StatCell
+          kicker="Recall (7d avg)"
+          big={analytics?.recallAvg != null ? `${analytics.recallAvg}%` : "—"}
+          delta={analytics?.recallTrend || "quiz to build history"}
+          deltaTone={analytics?.recallTone || "ok"}
+        />
+        <StatCell
+          kicker="Coming due"
+          big={`${dueCount} item${dueCount === 1 ? "" : "s"}`}
+          delta={dueSubjNames}
+          deltaTone={dueCount > 0 ? "due" : "ok"}
+        />
         <LiveAICell />
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 16, marginBottom: 24 }}>
-        <RealtimeAnalysisCard now={now} aiActivity={data.aiActivity} />
-        <FocusSessionCard now={now} workflow={workflow} />
+        <RealtimeAnalysisCard now={now} aiActivity={data.aiActivity} isDemoMode={data.demo} />
+        <FocusSessionCard workflow={workflow} />
       </div>
 
       <SectionTitle
@@ -250,159 +311,336 @@ function LiveDashboard({ data, setRoute, workflow, onAddSubject }) {
   );
 }
 
-function RealtimeAnalysisCard({ now, aiActivity }) {
-  const fmtRel = (mins) => {
-    if (mins < 1) return "just now";
-    if (mins < 60) return `${mins}m ago`;
-    return `${Math.floor(mins / 60)}h ago`;
+const AI_TYPE_META = {
+  upload:  { c: "var(--ink-2)",  l: "UPLOAD" },
+  embed:   { c: "var(--accent)", l: "INGEST" },
+  ask:     { c: "var(--ok)",     l: "ASK"    },
+  quiz:    { c: "var(--warn)",   l: "QUIZ"   },
+  summary: { c: "var(--ink-2)",  l: "SUM"    },
+  session: { c: "var(--accent)", l: "FOCUS"  },
+  // demo shapes
+  weak:    { c: "var(--due)",    l: "WEAK"   },
+  answer:  { c: "var(--ok)",     l: "ASK"    },
+};
+
+function RealtimeAnalysisCard({ now, aiActivity, isDemoMode }) {
+  const analytics = useAnalytics();
+
+  const header = (
+    <div style={{
+      display: "flex", alignItems: "center", justifyContent: "space-between",
+      padding: "14px 18px", borderBottom: "1px solid var(--line)",
+    }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <span style={{
+          width: 28, height: 28, borderRadius: 6,
+          background: "var(--accent-soft)", color: "var(--accent)",
+          display: "grid", placeItems: "center",
+        }}>
+          <span style={{ width: 14, height: 14 }}><Ic.Bot /></span>
+        </span>
+        <div>
+          <div className="label-xs">Real-time AI analysis</div>
+          <div style={{ fontSize: "var(--fs-18)", fontWeight: 500, letterSpacing: "-0.01em" }}>
+            {isDemoMode ? "Personalised — what the AI saw today" : "Live AI activity feed"}
+          </div>
+        </div>
+      </div>
+      <span style={{
+        display: "inline-flex", alignItems: "center", gap: 5,
+        fontSize: 10.5, color: "var(--ok)", fontWeight: 500,
+      }}>
+        <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--ok)",
+          animation: "ll-pulse-soft 1.4s infinite" }} />
+        live · streaming
+      </span>
+    </div>
+  );
+
+  // Demo mode: render the pre-baked demo events
+  if (isDemoMode && aiActivity?.length > 0) {
+    const fmtDemoRel = (mins) => {
+      const m = -mins;
+      if (m < 1) return "just now";
+      if (m < 60) return `${m}m ago`;
+      return `${Math.floor(m / 60)}h ago`;
+    };
+    return (
+      <Card padded={false}>
+        {header}
+        <div style={{ padding: "6px 0 4px" }}>
+          {aiActivity.map((a, i) => {
+            const m = AI_TYPE_META[a.kind] || { c: "var(--ink-3)", l: "AI" };
+            return (
+              <div key={i} data-subject={a.subj} style={{
+                display: "grid", gridTemplateColumns: "64px 1fr auto",
+                gap: 12, padding: "9px 18px", alignItems: "center",
+                borderTop: i === 0 ? "none" : "1px solid var(--line-soft)",
+              }}>
+                <span className="mono" style={{
+                  fontSize: 10, color: m.c, fontWeight: 600,
+                  padding: "1.5px 6px", borderRadius: 3,
+                  background: `color-mix(in oklch, ${m.c} 12%, transparent)`,
+                  width: "fit-content",
+                }}>{m.l}</span>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: "var(--fs-13)", color: "var(--ink)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.text}</div>
+                  <div style={{ fontSize: 11, color: "var(--ink-3)", marginTop: 1 }} className="mono">{a.meta}</div>
+                </div>
+                <span className="mono tabular" style={{ fontSize: 10.5, color: "var(--ink-3)" }}>{fmtDemoRel(a.t)}</span>
+              </div>
+            );
+          })}
+        </div>
+      </Card>
+    );
+  }
+
+  // Real mode: analytics events
+  const liveEvents = analytics?.aiEvents || [];
+  const fmtRel = (ts) => {
+    const secs = (Date.now() - ts) / 1000;
+    if (secs < 10) return "just now";
+    const m = Math.floor(secs / 60);
+    return m < 60 ? `${m}m ago` : `${Math.floor(m / 60)}h ago`;
   };
 
   return (
     <Card padded={false}>
-      <div style={{
-        display: "flex", alignItems: "center", justifyContent: "space-between",
-        padding: "14px 18px", borderBottom: "1px solid var(--line)",
-      }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span style={{
-            width: 28, height: 28, borderRadius: 6,
-            background: "var(--accent-soft)", color: "var(--accent)",
-            display: "grid", placeItems: "center",
+      {header}
+      <div style={{ padding: "6px 0 4px" }}>
+        {liveEvents.length === 0 ? (
+          <div style={{
+            padding: "28px 18px", textAlign: "center",
+            display: "flex", flexDirection: "column", alignItems: "center", gap: 8,
           }}>
-            <span style={{ width: 14, height: 14 }}><Ic.Bot /></span>
-          </span>
-          <div>
-            <div className="label-xs">Real-time AI analysis</div>
-            <div style={{ fontSize: "var(--fs-18)", fontWeight: 500, letterSpacing: "-0.01em" }}>
-              Personalised — what the AI saw today
+            <span style={{
+              width: 36, height: 36, borderRadius: 8,
+              background: "var(--surface-2)", color: "var(--ink-4)",
+              display: "grid", placeItems: "center",
+            }}><span style={{ width: 18, height: 18 }}><Ic.Bot /></span></span>
+            <div style={{ fontSize: "var(--fs-14)", color: "var(--ink-2)", fontWeight: 500 }}>No activity yet</div>
+            <div style={{ fontSize: 12, color: "var(--ink-3)", maxWidth: 280, lineHeight: 1.6 }}>
+              Complete a focus session, upload notes, or run a query — events will appear here in real time.
             </div>
           </div>
-        </div>
-        <span style={{
-          display: "inline-flex", alignItems: "center", gap: 5,
-          fontSize: 10.5, color: "var(--ok)", fontWeight: 500,
-        }}>
-          <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--ok)",
-            animation: "ll-pulse-soft 1.4s infinite" }} />
-          live · streaming
-        </span>
-      </div>
-      <div style={{ padding: "6px 0 4px" }}>
-        {aiActivity.map((a, i) => {
-          const mins = -a.t;
-          const kindMeta = {
-            embed:   { c: "var(--accent)", l: "INGEST" },
-            weak:    { c: "var(--due)",    l: "WEAK"   },
-            answer:  { c: "var(--ok)",     l: "ASK"    },
-            quiz:    { c: "var(--warn)",   l: "QUIZ"   },
-            summary: { c: "var(--ink-2)",  l: "SUM"    },
-          }[a.kind];
-          return (
-            <div key={i} data-subject={a.subj} style={{
-              display: "grid", gridTemplateColumns: "60px 1fr auto",
-              gap: 12, padding: "9px 18px", alignItems: "center",
-              borderTop: i === 0 ? "none" : "1px solid var(--line-soft)",
-            }}>
-              <span className="mono" style={{
-                fontSize: 10, color: kindMeta.c, fontWeight: 600,
-                padding: "1.5px 6px", borderRadius: 3,
-                background: `color-mix(in oklch, ${kindMeta.c} 12%, transparent)`,
-                width: "fit-content",
-              }}>{kindMeta.l}</span>
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: "var(--fs-13)", color: "var(--ink)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  {a.text}
+        ) : (
+          liveEvents.map((a, i) => {
+            const m = AI_TYPE_META[a.type] || { c: "var(--ink-3)", l: (a.type || "AI").toUpperCase().slice(0, 6) };
+            const isProcessing = a.status === "processing";
+            return (
+              <div key={a.id || i} style={{
+                display: "grid", gridTemplateColumns: "64px 1fr auto",
+                gap: 12, padding: "9px 18px", alignItems: "center",
+                borderTop: i === 0 ? "none" : "1px solid var(--line-soft)",
+                background: i === 0 && isProcessing ? "color-mix(in oklch, var(--accent-soft) 40%, transparent)" : "transparent",
+                transition: "background 400ms",
+              }}>
+                <span className="mono" style={{
+                  fontSize: 10, color: m.c, fontWeight: 600,
+                  padding: "1.5px 6px", borderRadius: 3,
+                  background: `color-mix(in oklch, ${m.c} 12%, transparent)`,
+                  width: "fit-content", display: "flex", alignItems: "center", gap: 4,
+                }}>
+                  {isProcessing && i === 0 && (
+                    <span style={{ width: 5, height: 5, borderRadius: "50%", background: m.c,
+                      animation: "ll-pulse-soft 1.2s infinite", display: "inline-block" }} />
+                  )}
+                  {m.l}
+                </span>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: "var(--fs-13)", color: "var(--ink)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {a.label}
+                  </div>
+                  {a.subj && (
+                    <div style={{ fontSize: 11, color: "var(--ink-3)", marginTop: 1 }} className="mono">{a.subj}</div>
+                  )}
                 </div>
-                <div style={{ fontSize: 11, color: "var(--ink-3)", marginTop: 1 }} className="mono">{a.meta}</div>
+                <span className="mono tabular" style={{ fontSize: 10.5, color: "var(--ink-3)" }}>{fmtRel(a.ts)}</span>
               </div>
-              <span className="mono tabular" style={{ fontSize: 10.5, color: "var(--ink-3)" }}>{fmtRel(mins)}</span>
-            </div>
-          );
-        })}
+            );
+          })
+        )}
       </div>
     </Card>
   );
 }
 
-function FocusSessionCard({ now, workflow }) {
-  const [running, setRunning] = useState(false);
-  const startRef = useRef(null);
-  useEffect(() => { if (running && !startRef.current) startRef.current = Date.now(); if (!running) startRef.current = null; }, [running]);
-  const elapsed = running ? Math.floor((now - startRef.current) / 1000) : 0;
-  const mm = String(Math.floor(elapsed / 60)).padStart(2, "0");
-  const ss = String(elapsed % 60).padStart(2, "0");
+// FocusSessionCard reads from the shared timer context so it stays in sync
+// with the top-bar pill and the floating panel — no duplicate state.
+function FocusSessionCard({ workflow }) {
+  const t = useTimer();
 
   const wMeta = {
-    study: { label: "Deep study", target: 50, hint: "Reading-first, long sessions" },
-    rev:   { label: "Revision",   target: 30, hint: "Recall + summaries" },
+    study: { label: "Deep study", target: 25, hint: "Reading-first, long sessions" },
+    rev:   { label: "Revision",   target: 25, hint: "Recall + summaries" },
     exam:  { label: "Exam prep",  target: 25, hint: "PYQ drills + timer" },
-    quick: { label: "Quick",      target: 10, hint: "10-min sprint" },
-  }[workflow];
+    quick: { label: "Quick",      target: 25, hint: "10-min sprint" },
+  }[workflow] || { label: "Focus", target: 25, hint: "" };
 
-  const pct = Math.min(1, elapsed / (wMeta.target * 60));
+  if (!t) return null;
+
+  const { status, displaySecs, progress, isBreak, start, pause, reset } = t;
+  const isRunning   = status === "running";
+  const isCompleted = status === "completed";
+  const accentColor = isBreak || isCompleted ? "var(--ok)" : "var(--accent)";
 
   return (
     <Card padded={false}>
-      <div style={{ padding: "14px 18px", borderBottom: "1px solid var(--line)" }}>
-        <div className="label-xs">Focus session</div>
-        <div style={{ fontSize: "var(--fs-18)", fontWeight: 500, letterSpacing: "-0.01em" }}>{wMeta.label} · {wMeta.target}m</div>
+      <div style={{ padding: "14px 18px", borderBottom: "1px solid var(--line)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div>
+          <div className="label-xs">Focus session</div>
+          <div style={{ fontSize: "var(--fs-18)", fontWeight: 500, letterSpacing: "-0.01em" }}>
+            {wMeta.label} · {wMeta.target}m
+          </div>
+        </div>
+        {isRunning && (
+          <span style={{
+            display: "inline-flex", alignItems: "center", gap: 4,
+            padding: "2px 8px", borderRadius: 100,
+            background: "var(--accent-soft)", color: "var(--accent)",
+            border: "1px solid var(--accent-line)",
+            fontSize: 10.5, fontWeight: 500,
+          }}>
+            <span style={{ width: 5, height: 5, borderRadius: "50%", background: "var(--accent)",
+              animation: "ll-pulse-soft 1.4s infinite" }} />
+            running
+          </span>
+        )}
       </div>
       <div style={{ padding: "20px 18px 16px", textAlign: "center" }}>
         <div style={{ position: "relative", width: 140, height: 140, margin: "0 auto 8px" }}>
-          <svg width="140" height="140" style={{ transform: "rotate(-90deg)" }}>
-            <circle cx="70" cy="70" r="62" fill="none" stroke="var(--line)" strokeWidth="4" />
-            <circle cx="70" cy="70" r="62" fill="none"
-              stroke="var(--accent)" strokeWidth="4" strokeLinecap="round"
-              strokeDasharray={2 * Math.PI * 62}
-              strokeDashoffset={2 * Math.PI * 62 * (1 - pct)}
-              style={{ transition: "stroke-dashoffset 0.5s linear" }} />
-          </svg>
+          <ProgressRing
+            progress={progress}
+            size={140}
+            strokeWidth={4}
+            isRunning={isRunning}
+            isCompleted={isCompleted}
+            isBreak={isBreak}
+          />
           <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center" }}>
             <div>
-              <div className="mono tabular" style={{ fontFamily: "var(--font-serif)", fontSize: 32, lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>
-                {mm}:{ss}
+              <div
+                className="mono tabular"
+                style={{
+                  fontFamily: "var(--font-serif)", fontSize: 32,
+                  lineHeight: 1, fontVariantNumeric: "tabular-nums",
+                  color: isCompleted ? "var(--ok)" : "var(--ink)",
+                  animation: isRunning ? "ll-breathe 4s ease-in-out infinite" : "none",
+                }}
+                aria-live="polite"
+              >
+                {fmtTimer(displaySecs)}
               </div>
-              <div style={{ fontSize: 10.5, color: "var(--ink-3)", marginTop: 2, textTransform: "uppercase", letterSpacing: "0.08em" }}>
-                {running ? "running" : "idle"}
+              <div style={{ fontSize: 10.5, color: "var(--ink-3)", marginTop: 2,
+                textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                {status === "idle"      ? "ready"    : ""}
+                {status === "running"   ? (isBreak ? "break" : "focused") : ""}
+                {status === "paused"    ? "paused"   : ""}
+                {status === "completed" ? "done ✓"   : ""}
               </div>
             </div>
           </div>
         </div>
         <div style={{ fontSize: 12, color: "var(--ink-3)", marginBottom: 12 }}>{wMeta.hint}</div>
         <div style={{ display: "flex", justifyContent: "center", gap: 6 }}>
-          <Btn variant={running ? "default" : "primary"} icon={Ic.Timer} onClick={() => setRunning(r => !r)}>
-            {running ? "Pause" : "Start"}
+          <Btn
+            variant={isRunning ? "default" : "primary"}
+            icon={Ic.Timer}
+            onClick={isRunning ? pause : start}
+            style={isRunning ? {} : { background: accentColor, borderColor: accentColor, color: "white" }}
+          >
+            {isRunning ? "Pause" : isCompleted ? "Restart" : "Start"}
           </Btn>
-          <Btn variant="ghost" onClick={() => { setRunning(false); startRef.current = null; }}>Reset</Btn>
+          <Btn variant="ghost" onClick={reset}>Reset</Btn>
         </div>
       </div>
     </Card>
   );
 }
 
+const AI_FOCUS_MSGS = [
+  "monitoring focus",
+  "analysing session",
+  "tracking progress",
+  "in focus mode",
+];
+
 function LiveAICell() {
   const [tick, setTick] = useState(0);
-  useEffect(() => { const id = setInterval(() => setTick(t => t + 1), 1200); return () => clearInterval(id); }, []);
+  const timer     = useTimer();
+  const analytics = useAnalytics();
+
+  useEffect(() => {
+    const id = setInterval(() => setTick(t => t + 1), 1200);
+    return () => clearInterval(id);
+  }, []);
+
+  const timerStatus = timer?.status || "idle";
+  const isRunning   = timerStatus === "running";
+  const isBreak     = timer?.isBreak;
+  const latestAI    = analytics?.latestAI;
+  const isRecentAI  = latestAI && (Date.now() - latestAI.ts < 15_000);
+  const isProcessing = isRecentAI && latestAI?.status === "processing";
+
+  const headline = (() => {
+    if (isRecentAI)                return latestAI.label;
+    if (timerStatus === "completed") return isBreak ? "break done ✓" : "session done ✓";
+    if (timerStatus === "running")   return isBreak ? "break mode" : AI_FOCUS_MSGS[tick % AI_FOCUS_MSGS.length];
+    if (timerStatus === "paused")    return "session paused";
+    return "AI standing by";
+  })();
+
+  const dotColor = isProcessing
+    ? "var(--warn)"
+    : isRunning && !isBreak ? "var(--accent)"
+    : isBreak ? "var(--ok)"
+    : "var(--accent)";
+
+  const bgGrad = isProcessing
+    ? "linear-gradient(135deg, var(--warn-soft), transparent)"
+    : isRunning && !isBreak ? "linear-gradient(135deg, var(--accent-soft), transparent)"
+    : isBreak ? "linear-gradient(135deg, var(--ok-soft), transparent)"
+    : "linear-gradient(135deg, var(--accent-soft), transparent)";
+
+  const subText = (() => {
+    if (isProcessing) return "processing…";
+    if (isRecentAI && latestAI?.status === "done") return "done ✓";
+    if (isRunning && !isBreak) return `session ${String((timer?.sessionCount || 0) + 1).padStart(2, "0")} · live`;
+    const wk = analytics?.weekFocusLabel;
+    return wk && wk !== "0m" ? `${wk} this week` : "start a session";
+  })();
+
+  const shouldAnimate = isProcessing || (isRunning && !isBreak);
+
   return (
-    <Card style={{ padding: "14px 16px", background: "linear-gradient(135deg, var(--accent-soft), transparent)" }}>
+    <Card style={{ padding: "14px 16px", background: bgGrad, transition: "background 400ms" }}>
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
-        <div className="label-xs" style={{ color: "var(--accent)" }}>AI · live</div>
-        <span style={{ width: 14, height: 14, color: "var(--accent)" }}><Ic.Bot /></span>
+        <div className="label-xs" style={{ color: dotColor }}>
+          {isProcessing ? "AI · processing" : isRunning ? "AI · active" : "AI · live"}
+        </div>
+        <span style={{
+          width: 14, height: 14, color: dotColor,
+          animation: isProcessing ? "ll-pulse-soft 1.4s infinite" : "none",
+        }}><Ic.Bot /></span>
       </div>
       <div style={{
         fontFamily: "var(--font-serif)", fontWeight: 400,
-        fontSize: 22, marginTop: 4, marginBottom: 6, letterSpacing: "-0.02em",
-      }} className="tabular">
-        indexing…
+        fontSize: 20, marginTop: 4, marginBottom: 6, letterSpacing: "-0.02em",
+        color: "var(--ink)", transition: "color 300ms",
+        overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+      }}>
+        {headline}
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 4 }} className="mono">
-        {[0,1,2].map(i => (
+        {[0, 1, 2].map(i => (
           <span key={i} style={{
-            width: 4, height: 4, borderRadius: "50%", background: "var(--accent)",
-            opacity: ((tick + i) % 3 === 0) ? 1 : 0.3, transition: "opacity 240ms",
+            width: 4, height: 4, borderRadius: "50%", background: dotColor,
+            opacity: shouldAnimate ? (((tick + i) % 3 === 0) ? 1 : 0.25) : 0.25,
+            transition: "opacity 240ms",
           }} />
         ))}
-        <span style={{ fontSize: 11, color: "var(--ink-3)", marginLeft: 6 }}>12 chunks · 0.84s</span>
+        <span style={{ fontSize: 11, color: "var(--ink-3)", marginLeft: 6 }}>{subText}</span>
       </div>
     </Card>
   );
@@ -442,13 +680,16 @@ function Sparkline({ values }) {
 }
 
 function SubjectCard({ s, onOpen }) {
-  const I = SUBJECT_ICONS[s.id];
+  const SI = SUBJECT_ICONS[s.id];
+  const I  = SI || (s.icon && Ic[s.icon]) || null;
+  const colorVars = !SI ? getCustomColorVars(s.color) : {};
   return (
     <button onClick={onOpen} data-subject={s.id} style={{
       textAlign: "left", padding: 0, background: "var(--surface)",
       border: "1px solid var(--line)", borderRadius: "var(--r-lg)",
       overflow: "hidden", boxShadow: "var(--shadow-sm)",
       transition: "transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease",
+      ...colorVars,
     }}
       onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--s-line)"; e.currentTarget.style.boxShadow = "var(--shadow-md)"; e.currentTarget.style.transform = "translateY(-1px)"; }}
       onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--line)"; e.currentTarget.style.boxShadow = "var(--shadow-sm)"; e.currentTarget.style.transform = "none"; }}>

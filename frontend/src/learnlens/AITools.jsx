@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useAppData } from "./data.js";
 import { Card, Pill, Btn, Ic } from "./Shell.jsx";
+import { emitAIActivity, useAnalytics } from "./useStudyAnalytics.jsx";
 
 function AITools() {
   const d = useAppData();
@@ -149,18 +150,27 @@ function UploadPanel({ pdfs, setPdfs, setSelected }) {
   const handleFile = (file) => {
     setName(file.name);
     setStage("uploading"); setProgress(0);
+    emitAIActivity({ type: "upload", label: `Uploading ${file.name}`, status: "processing" });
     const id = setInterval(() => {
       setProgress(p => {
-        if (p >= 100) { clearInterval(id); setStage("ingesting"); setTimeout(finish, 1200); return 100; }
+        if (p >= 100) {
+          clearInterval(id);
+          setStage("ingesting");
+          emitAIActivity({ type: "embed", label: `Embedding & indexing ${file.name}`, status: "processing" });
+          setTimeout(finish, 1200);
+          return 100;
+        }
         return p + 7;
       });
     }, 60);
   };
   const finish = () => {
-    const newPdf = { id: "p" + Date.now(), name, chunks: Math.floor(40 + Math.random() * 80), t: "just now" };
+    const chunks = Math.floor(40 + Math.random() * 80);
+    const newPdf = { id: "p" + Date.now(), name, chunks, t: "just now" };
     setPdfs(ps => [newPdf, ...ps]);
     setSelected(s => [newPdf.id, ...s]);
     setStage("done");
+    emitAIActivity({ type: "embed", label: `Indexed ${name} — ${chunks} chunks`, status: "done" });
     setTimeout(() => { setStage("idle"); setName(""); setProgress(0); }, 1600);
   };
 
@@ -239,7 +249,9 @@ function AskPanel({ pdfs, selected }) {
   const send = () => {
     if (!q.trim() || noPdfs) return;
     const userMsg = { role: "user", text: q };
+    const queryText = q;
     setHistory(h => [...h, userMsg]); setQ(""); setLoading(true);
+    emitAIActivity({ type: "ask", label: `Searching: "${queryText.slice(0, 40)}${queryText.length > 40 ? "…" : ""}"`, status: "processing" });
     setTimeout(() => {
       setHistory(h => [...h, {
         role: "assistant",
@@ -249,6 +261,7 @@ function AskPanel({ pdfs, selected }) {
           { p: "Spivak_Calculus_Ch7.pdf", page: 131, snippet: "Theorem 4.3 — Every Cauchy sequence in ℝ converges in ℝ." },
         ],
       }]);
+      emitAIActivity({ type: "ask", label: `Retrieved 6 chunks — answer generated`, status: "done" });
       setLoading(false);
     }, 1100);
   };
@@ -378,6 +391,7 @@ function SummaryPanel({ pdfs, selected }) {
   const run = () => {
     if (selected.length === 0) return;
     setLoading(true); setGen(null);
+    emitAIActivity({ type: "summary", label: `Summarising ${selected.length} document${selected.length === 1 ? "" : "s"}`, status: "processing" });
     setTimeout(() => {
       setGen({
         words: length === "short" ? 80 : length === "medium" ? 220 : 420,
@@ -390,6 +404,7 @@ function SummaryPanel({ pdfs, selected }) {
         ],
         sourcesUsed: selected.length,
       });
+      emitAIActivity({ type: "summary", label: `Summary ready — ${length} format`, status: "done" });
       setLoading(false);
     }, 1400);
   };
@@ -477,22 +492,44 @@ function SummaryPanel({ pdfs, selected }) {
 }
 
 function QuizPanel({ pdfs, selected }) {
+  const analytics = useAnalytics();
   const [diff, setDiff] = useState("Medium");
   const [mode, setMode] = useState("Notes Only");
   const [pyq, setPyq] = useState("");
   const [quiz, setQuiz] = useState(null);
   const [picked, setPicked] = useState({});
   const [loading, setLoading] = useState(false);
+  const scoreRecorded = useRef(false);
+
+  // Detect quiz completion and record recall score
+  useEffect(() => {
+    if (!quiz || scoreRecorded.current) return;
+    const allAnswered = quiz.every((_, i) => picked[i] !== undefined);
+    if (!allAnswered) return;
+    scoreRecorded.current = true;
+    const correct = quiz.filter((q, i) => picked[i] === q.c).length;
+    analytics?.recordQuizResult({ score: correct, total: quiz.length });
+    emitAIActivity({
+      type: "quiz",
+      label: `Quiz done — ${correct}/${quiz.length} correct (${Math.round((correct / quiz.length) * 100)}%)`,
+      status: "done",
+    });
+  }, [JSON.stringify(Object.values(picked)), quiz]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Reset recorded flag when a new quiz is generated
+  useEffect(() => { scoreRecorded.current = false; }, [quiz]);
 
   const generate = () => {
     if (selected.length === 0) return;
     setLoading(true); setQuiz(null); setPicked({});
+    emitAIActivity({ type: "quiz", label: `Generating ${diff.toLowerCase()} quiz from ${selected.length} doc${selected.length === 1 ? "" : "s"}`, status: "processing" });
     setTimeout(() => {
       setQuiz([
         { q: "A sequence (aₙ) in ℝ is Cauchy if and only if:", o: { A: "It is monotonic and bounded.", B: "For every ε > 0 there exists N such that |aₘ − aₙ| < ε whenever m, n ≥ N.", C: "It has a subsequence converging to its supremum.", D: "It is bounded above." }, c: "B", e: "Direct from the Cauchy criterion — tails crowd within every ε." },
         { q: "Which space is NOT complete?", o: { A: "ℝ", B: "ℝⁿ", C: "ℚ", D: "ℓ²" }, c: "C", e: "ℚ is not complete: the sequence 1, 1.4, 1.41, … converges to √2 ∉ ℚ." },
         { q: "A contractive sequence satisfies |aₙ₊₁ − aₙ| ≤ k|aₙ − aₙ₋₁| with…", o: { A: "k < 1", B: "k = 1", C: "k > 1", D: "k ≤ 0" }, c: "A", e: "Strict contraction (k < 1) forces geometric decay of differences." },
       ]);
+      emitAIActivity({ type: "quiz", label: "Quiz generated — 3 questions ready", status: "done" });
       setLoading(false);
     }, 1600);
   };

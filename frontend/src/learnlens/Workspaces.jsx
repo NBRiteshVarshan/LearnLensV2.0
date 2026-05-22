@@ -6,7 +6,7 @@ import {
   BIO_DIAGRAMS, BIO_GLOSSARY,
   LIT_PASSAGE, LIT_ANNOTATIONS,
 } from "./data.js";
-import { Card, Pill, Btn, SectionTitle, Ic, SUBJECT_ICONS } from "./Shell.jsx";
+import { Card, Pill, Btn, SectionTitle, Ic, SUBJECT_ICONS, getCustomColorVars } from "./Shell.jsx";
 
 // ── Add-content menu used by every subject header ──────────────────────────
 const ADD_KINDS = [
@@ -121,11 +121,15 @@ function AddContentMenu({ subject, onAdd }) {
 
 // ── Shared subject header ──────────────────────────────────────────────────
 function SubjectHeader({ s, tabs, tab, setTab, recent, onAdd }) {
-  const I = SUBJECT_ICONS[s.id];
+  const SI = SUBJECT_ICONS[s.id];
+  const isCustom = !SI;
+  const CI = isCustom && s.icon ? Ic[s.icon] : null;
+  const colorVars = isCustom ? getCustomColorVars(s.color) : {};
   return (
     <div data-subject={s.id} style={{
       padding: "22px 32px 0", borderBottom: "1px solid var(--line)",
       background: `linear-gradient(180deg, color-mix(in oklch, var(--s-soft) 50%, var(--surface)) 0%, var(--bg) 100%)`,
+      ...colorVars,
     }}>
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 24, maxWidth: 1400, margin: "0 auto" }}>
         <div style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
@@ -135,7 +139,15 @@ function SubjectHeader({ s, tabs, tab, setTab, recent, onAdd }) {
             display: "grid", placeItems: "center", color: "var(--s)",
             boxShadow: "var(--shadow-sm)",
           }}>
-            <span style={{ width: 22, height: 22 }}><I /></span>
+            {SI ? (
+              <span style={{ width: 22, height: 22 }}><SI /></span>
+            ) : CI ? (
+              <span style={{ width: 22, height: 22 }}><CI /></span>
+            ) : (
+              <span style={{ fontSize: 16, fontWeight: 700, fontFamily: "var(--font-mono)", lineHeight: 1 }}>
+                {(s.name || "?").slice(0, 2).toUpperCase()}
+              </span>
+            )}
           </div>
           <div>
             <div className="mono" style={{ fontSize: 11, color: "var(--ink-3)", marginBottom: 2 }}>
@@ -1043,25 +1055,76 @@ function LitWorkspace({ s, recent, onAdd }) {
 // ═══════════════════════════════════════════════════════════════════════════
 function GenericSubject({ s, recent, onAdd }) {
   const [tab, setTab] = useState("notes");
+  const [notes, setNotes] = useState([]);
+  const [noteInput, setNoteInput] = useState("");
   const tabs = [
-    { id: "notes",      label: "Notes" },
-    { id: "lectures",   label: "Lectures" },
-    { id: "problems",   label: "Practice" },
-    { id: "resources",  label: "Resources" },
+    { id: "notes",     label: "Notes",     count: notes.length || undefined },
+    { id: "lectures",  label: "Lectures" },
+    { id: "practice",  label: "Practice" },
+    { id: "resources", label: "Resources" },
   ];
+  const colorVars = !SUBJECT_ICONS[s.id] ? getCustomColorVars(s.color) : {};
+
+  const addNote = () => {
+    const t = noteInput.trim();
+    if (!t) return;
+    setNotes(n => [{ id: Date.now(), text: t, ts: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) }, ...n]);
+    setNoteInput("");
+  };
+
   return (
-    <div data-subject={s.id}>
+    <div data-subject={s.id} style={colorVars}>
       <SubjectHeader s={s} tabs={tabs} tab={tab} setTab={setTab} recent={recent} onAdd={onAdd} />
       <div style={{ padding: "24px 32px 60px", maxWidth: 1400, margin: "0 auto" }}>
-        <div style={{
-          padding: 32, border: "1px dashed var(--line)", borderRadius: "var(--r-lg)",
-          textAlign: "center", color: "var(--ink-3)",
-        }}>
-          <div className="label-xs" style={{ marginBottom: 8 }}>workspace</div>
-          <div style={{ fontSize: "var(--fs-15)", color: "var(--ink-2)" }}>
-            {s.name} workspace placeholder — open Mathematics, Programming, Biology, or Literature for the differentiated layouts.
+        {tab === "notes" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <div style={{ display: "flex", gap: 8 }}>
+              <input
+                value={noteInput}
+                onChange={e => setNoteInput(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && addNote()}
+                placeholder={`Quick note for ${s.name}…`}
+                style={{
+                  flex: 1, padding: "10px 13px", border: "1px solid var(--line)",
+                  borderRadius: "var(--r)", fontSize: "var(--fs-14)",
+                  background: "var(--surface)", color: "var(--ink)",
+                }}
+              />
+              <button onClick={addNote} style={{
+                padding: "10px 16px", borderRadius: "var(--r)",
+                background: "var(--s)", color: "var(--on-accent)",
+                fontSize: "var(--fs-13)", fontWeight: 500,
+              }}>Add</button>
+            </div>
+            {notes.length === 0 ? (
+              <div style={{
+                padding: 32, border: "1px dashed var(--line)", borderRadius: "var(--r-lg)",
+                textAlign: "center", color: "var(--ink-3)", fontSize: "var(--fs-14)",
+              }}>
+                No notes yet — type above and press Enter to add one.
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {notes.map(n => (
+                  <Card key={n.id} style={{ padding: "12px 16px", display: "flex", gap: 12, alignItems: "flex-start" }}>
+                    <div style={{ flex: 1, fontSize: "var(--fs-14)", lineHeight: 1.6 }}>{n.text}</div>
+                    <span className="mono" style={{ fontSize: 11, color: "var(--ink-4)", flexShrink: 0, paddingTop: 2 }}>{n.ts}</span>
+                    <button onClick={() => setNotes(ns => ns.filter(x => x.id !== n.id))}
+                      style={{ width: 18, height: 18, color: "var(--ink-4)", flexShrink: 0 }}><Ic.X /></button>
+                  </Card>
+                ))}
+              </div>
+            )}
           </div>
-        </div>
+        )}
+        {tab !== "notes" && (
+          <div style={{
+            padding: 32, border: "1px dashed var(--line)", borderRadius: "var(--r-lg)",
+            textAlign: "center", color: "var(--ink-3)", fontSize: "var(--fs-14)",
+          }}>
+            Use the <strong>Add</strong> button above to populate {tab} for {s.name}.
+          </div>
+        )}
       </div>
     </div>
   );

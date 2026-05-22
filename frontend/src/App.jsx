@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from "react";
 
 import { useAppData } from "./learnlens/data.js";
-import { Sidebar, TopBar, CommandBar, Ic, SUBJECT_ICONS, WORKFLOWS } from "./learnlens/Shell.jsx";
+import { Sidebar, TopBar, CommandBar, Ic, SUBJECT_ICONS, CUSTOM_COLORS, getCustomColorVars, WORKFLOWS } from "./learnlens/Shell.jsx";
 import { Dashboard } from "./learnlens/Dashboard.jsx";
 import { SubjectRouter } from "./learnlens/Workspaces.jsx";
 import { Library, Calendar_View, Analytics, Inbox } from "./learnlens/Views.jsx";
 import { AITools } from "./learnlens/AITools.jsx";
+import { TimerProvider, TimerPill, TimerPanel } from "./learnlens/StudyTimer.jsx";
+import { AnalyticsProvider } from "./learnlens/useStudyAnalytics.jsx";
 import {
   TweaksPanel, useTweaks, TweakSection,
   TweakRadio, TweakSelect, TweakToggle, TweakColor,
@@ -27,6 +29,21 @@ const ACCENTS = {
   "#56616e": { l: "oklch(40% 0.04 260)", d: "oklch(78% 0.02 260)", soft_l: "oklch(94% 0.01 260)", soft_d: "oklch(26% 0.01 260)", line_l: "oklch(80% 0.02 260)", line_d: "oklch(38% 0.02 260)" },
 };
 
+const CUSTOM_ICON_OPTIONS = [
+  "Note", "Books", "Globe", "Code", "Beaker", "Atom",
+  "Sigma", "Cell", "Quill", "Video", "Chart", "Sparkle",
+];
+
+function generateId() {
+  return "custom_" + Math.random().toString(36).slice(2, 9);
+}
+
+const LS_SUBJECTS_KEY = "ll-user-subjects-v1";
+
+function loadSavedSubjects() {
+  try { return JSON.parse(localStorage.getItem(LS_SUBJECTS_KEY)) || []; } catch { return []; }
+}
+
 const SUBJECT_TEMPLATES = [
   { id: "math", name: "Mathematics",   code: "MATH 241", title: "Real Analysis & Linear Algebra",  flavor: "formula" },
   { id: "prog", name: "Programming",   code: "CS 168",   title: "Algorithms & Data Structures",    flavor: "code" },
@@ -39,8 +56,17 @@ const SUBJECT_TEMPLATES = [
 
 function blankSubject(template) {
   return {
-    ...template, key: template.id, instructor: "—",
-    progress: 0, streak: 0, hours: 0, tag: "Core", session: "Not scheduled",
+    ...template,
+    key: template.id,
+    type: template.type || "starter",
+    color: template.color || null,
+    icon: template.icon || null,
+    description: template.description || null,
+    createdAt: template.createdAt || null,
+    instructor: "—",
+    progress: 0, streak: 0, hours: 0,
+    tag: template.tag || "Core",
+    session: "Not scheduled",
     next: { kind: "Add first task", title: "Get started", due: "—", urgency: "neutral" },
     units: 0, unitDone: 0, resourceCount: 0, pinned: [],
   };
@@ -55,8 +81,9 @@ export default function App() {
   const [route, setRoute] = useState({ view: "dashboard" });
   const [cmdOpen, setCmdOpen] = useState(false);
   const [addSubjOpen, setAddSubjOpen] = useState(false);
+  const [timerOpen, setTimerOpen] = useState(false);
   const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
-  const [userSubjects, setUserSubjects] = useState([]);
+  const [userSubjects, setUserSubjects] = useState(loadSavedSubjects);
   const [, forceTick] = useState(0);
 
   // Mirror demo state to window for components that use useAppData()
@@ -64,6 +91,7 @@ export default function App() {
     window.__LL_DEMO = !!t.demo;
     window.__LL_USER_SUBJECTS = userSubjects;
     forceTick(x => x + 1);
+    try { localStorage.setItem(LS_SUBJECTS_KEY, JSON.stringify(userSubjects)); } catch {}
   }, [t.demo, userSubjects]);
 
   // Apply theme / density / accent
@@ -84,7 +112,7 @@ export default function App() {
         e.preventDefault();
         setCmdOpen(true);
       }
-      if (e.key === "Escape") { setCmdOpen(false); setAddSubjOpen(false); }
+      if (e.key === "Escape") { setCmdOpen(false); setAddSubjOpen(false); setTimerOpen(false); }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -103,31 +131,27 @@ export default function App() {
     if (route.view === "subject") {
       const s = subjects.find(x => x.id === route.id);
       if (!s) return [{ label: "Subjects", icon: Ic.Books }];
-      const I = SUBJECT_ICONS[s.id];
+      const SI = SUBJECT_ICONS[s.id];
+      const CI = !SI && s.icon ? Ic[s.icon] : null;
+      const iconColor = SI ? `var(--${s.id})` : (() => {
+        const vars = getCustomColorVars(s.color);
+        return vars["--s"];
+      })();
       return [
         { label: "Subjects", icon: Ic.Books },
-        { label: s.name, icon: I, color: `var(--${s.id})` },
+        { label: s.name, icon: SI || CI || undefined, color: iconColor },
       ];
     }
     return [];
   })();
 
-  const workflowLabel = {
-    study: "Deep study", rev: "Revision", exam: "Exam prep", quick: "Quick practice",
-  }[t.workflow];
-
-  const right = t.showWorkflowChrome ? (
-    <div style={{
-      display: "flex", alignItems: "center", gap: 10, padding: "5px 12px",
-      borderRadius: 100, border: "1px solid var(--accent-line)",
-      background: "var(--accent-soft)", color: "var(--accent)",
-      fontSize: "var(--fs-13)", fontWeight: 500,
-    }}>
-      <span style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--accent)",
-        animation: "ll-pulse-soft 1.8s infinite" }} />
-      {workflowLabel} <span style={{ color: "var(--ink-3)", fontWeight: 400 }}>· 25:00 timer ready</span>
-    </div>
-  ) : null;
+  const right = (
+    <TimerPill
+      onOpen={() => setTimerOpen(true)}
+      workflow={t.workflow}
+      showWorkflow={t.showWorkflowChrome}
+    />
+  );
 
   const openAddSubject = () => setAddSubjOpen(true);
 
@@ -150,6 +174,8 @@ export default function App() {
   else if (route.view === "aitools")   body = <AITools />;
 
   return (
+    <TimerProvider>
+    <AnalyticsProvider>
     <div style={{ display: "flex", height: "100vh", overflow: "hidden" }}>
       <Sidebar
         route={route}
@@ -179,6 +205,8 @@ export default function App() {
 
       <AddSubjectModal open={addSubjOpen} onClose={() => setAddSubjOpen(false)}
         existing={userSubjects} onAdd={addSubject} />
+
+      <TimerPanel open={timerOpen} onClose={() => setTimerOpen(false)} />
 
       <TweaksPanel title="Tweaks">
         <TweakSection label="App state">
@@ -223,14 +251,61 @@ export default function App() {
         </TweakSection>
       </TweaksPanel>
     </div>
+    </AnalyticsProvider>
+    </TimerProvider>
   );
 }
 
 // ── Add Subject modal ──────────────────────────────────────────────────────
+const CUSTOM_TAG_OPTIONS = ["Core", "Elective", "Lab", "Seminar", "Independent", "Language", "Other"];
+
 function AddSubjectModal({ open, onClose, existing, onAdd }) {
+  const [view, setView] = useState("gallery"); // "gallery" | "custom"
+  const [form, setForm] = useState({ name: "", code: "", description: "", icon: "Note", color: "indigo", tag: "Core" });
+  const [nameErr, setNameErr] = useState(false);
+
+  const resetAndClose = () => {
+    setView("gallery");
+    setForm({ name: "", code: "", description: "", icon: "Note", color: "indigo", tag: "Core" });
+    setNameErr(false);
+    onClose();
+  };
+
+  const submitCustom = () => {
+    if (!form.name.trim()) { setNameErr(true); return; }
+    const id = generateId();
+    onAdd({
+      id, name: form.name.trim(),
+      code: form.code.trim() || null,
+      title: form.description.trim() || form.name.trim(),
+      description: form.description.trim() || null,
+      icon: form.icon,
+      color: form.color,
+      tag: form.tag,
+      type: "custom",
+      createdAt: new Date().toISOString(),
+      flavor: "generic",
+    });
+  };
+
   if (!open) return null;
+
+  const colorKeys = Object.keys(CUSTOM_COLORS);
+  const colorSwatchStyle = (key, selected) => {
+    const c = CUSTOM_COLORS[key];
+    const dark = document.documentElement.dataset.theme === "dark";
+    const main = dark ? c.d : c.l;
+    return {
+      width: 24, height: 24, borderRadius: "50%", background: main, cursor: "pointer", flexShrink: 0,
+      outline: selected ? `2px solid ${main}` : "none",
+      outlineOffset: 2,
+      boxShadow: selected ? "0 0 0 1px var(--surface)" : "none",
+      transition: "outline 100ms",
+    };
+  };
+
   return (
-    <div onClick={onClose} style={{
+    <div onClick={resetAndClose} style={{
       position: "fixed", inset: 0, background: "color-mix(in oklch, var(--bg) 60%, black 40%)",
       backdropFilter: "blur(4px)", zIndex: 100,
       display: "flex", alignItems: "flex-start", justifyContent: "center",
@@ -241,55 +316,231 @@ function AddSubjectModal({ open, onClose, existing, onAdd }) {
         borderRadius: "var(--r-lg)", boxShadow: "var(--shadow-lg)", overflow: "hidden",
         animation: "ll-fade-in 160ms ease",
       }}>
+        {/* Header */}
         <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--line)",
           display: "flex", alignItems: "center", justifyContent: "space-between",
         }}>
-          <div>
-            <div className="label-xs">New subject</div>
-            <div style={{ fontSize: "var(--fs-18)", fontWeight: 500 }}>Pick a starter, or build from scratch</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            {view === "custom" && (
+              <button onClick={() => setView("gallery")} style={{ fontSize: 12, color: "var(--accent)", marginRight: 2 }}>← Back</button>
+            )}
+            <div>
+              <div className="label-xs">{view === "custom" ? "Custom subject" : "New subject"}</div>
+              <div style={{ fontSize: "var(--fs-18)", fontWeight: 500 }}>
+                {view === "custom" ? "Build from scratch" : "Pick a starter template"}
+              </div>
+            </div>
           </div>
-          <button onClick={onClose} style={{ width: 28, height: 28, color: "var(--ink-3)", display: "grid", placeItems: "center", borderRadius: 4 }}>
+          <button onClick={resetAndClose} style={{ width: 28, height: 28, color: "var(--ink-3)", display: "grid", placeItems: "center", borderRadius: 4 }}>
             <span style={{ width: 14, height: 14 }}><Ic.X /></span>
           </button>
         </div>
-        <div style={{ padding: 16, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-          {SUBJECT_TEMPLATES.map(tpl => {
-            const I = SUBJECT_ICONS[tpl.id];
-            const already = existing.find(x => x.id === tpl.id);
-            return (
-              <button key={tpl.id} onClick={() => !already && onAdd(tpl)} data-subject={tpl.id}
-                disabled={!!already}
-                style={{
-                  textAlign: "left", padding: "12px 14px", borderRadius: 10,
-                  border: "1px solid var(--line)", background: "var(--surface)",
-                  opacity: already ? 0.5 : 1, cursor: already ? "not-allowed" : "pointer",
-                  display: "flex", alignItems: "center", gap: 12,
-                  transition: "border-color 140ms, background 140ms",
-                }}
-                onMouseEnter={e => !already && (e.currentTarget.style.borderColor = "var(--s-line)")}
-                onMouseLeave={e => !already && (e.currentTarget.style.borderColor = "var(--line)")}>
+
+        {/* Gallery view */}
+        {view === "gallery" && (
+          <>
+            <div style={{ padding: 16, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+              {SUBJECT_TEMPLATES.map(tpl => {
+                const I = SUBJECT_ICONS[tpl.id];
+                const already = existing.find(x => x.id === tpl.id);
+                return (
+                  <button key={tpl.id} onClick={() => !already && onAdd(tpl)} data-subject={tpl.id}
+                    disabled={!!already}
+                    style={{
+                      textAlign: "left", padding: "12px 14px", borderRadius: 10,
+                      border: "1px solid var(--line)", background: "var(--surface)",
+                      opacity: already ? 0.5 : 1, cursor: already ? "not-allowed" : "pointer",
+                      display: "flex", alignItems: "center", gap: 12,
+                      transition: "border-color 140ms, background 140ms",
+                    }}
+                    onMouseEnter={e => !already && (e.currentTarget.style.borderColor = "var(--s-line)")}
+                    onMouseLeave={e => !already && (e.currentTarget.style.borderColor = "var(--line)")}>
+                    <span style={{
+                      width: 32, height: 32, borderRadius: 8,
+                      background: "var(--s-soft)", color: "var(--s)",
+                      display: "grid", placeItems: "center", flexShrink: 0,
+                    }}>{I && <span style={{ width: 17, height: 17 }}><I /></span>}</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: "var(--fs-14)", fontWeight: 500, marginBottom: 2 }}>
+                        {tpl.name} <span className="mono" style={{ fontSize: 10.5, color: "var(--ink-3)", marginLeft: 4 }}>{tpl.code}</span>
+                      </div>
+                      <div style={{ fontSize: 11.5, color: "var(--ink-3)", fontStyle: "italic" }}>{tpl.title}</div>
+                    </div>
+                    {already && <span className="mono" style={{ fontSize: 10, color: "var(--ok)" }}>added</span>}
+                  </button>
+                );
+              })}
+
+              {/* Create Custom card */}
+              <button onClick={() => setView("custom")} style={{
+                textAlign: "left", padding: "12px 14px", borderRadius: 10,
+                border: "1px dashed var(--accent-line)", background: "var(--accent-soft)",
+                cursor: "pointer", display: "flex", alignItems: "center", gap: 12,
+                transition: "border-color 140ms, background 140ms",
+              }}
+                onMouseEnter={e => { e.currentTarget.style.background = "color-mix(in oklch, var(--accent-soft) 80%, var(--surface))"; }}
+                onMouseLeave={e => { e.currentTarget.style.background = "var(--accent-soft)"; }}>
                 <span style={{
                   width: 32, height: 32, borderRadius: 8,
-                  background: "var(--s-soft)", color: "var(--s)",
+                  background: "var(--surface)", color: "var(--accent)",
                   display: "grid", placeItems: "center", flexShrink: 0,
-                }}>{I && <span style={{ width: 17, height: 17 }}><I /></span>}</span>
+                  border: "1px solid var(--accent-line)",
+                }}><span style={{ width: 17, height: 17 }}><Ic.Plus /></span></span>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: "var(--fs-14)", fontWeight: 500, marginBottom: 2 }}>
-                    {tpl.name} <span className="mono" style={{ fontSize: 10.5, color: "var(--ink-3)", marginLeft: 4 }}>{tpl.code}</span>
+                  <div style={{ fontSize: "var(--fs-14)", fontWeight: 500, marginBottom: 2, color: "var(--accent)" }}>
+                    Create custom subject
                   </div>
-                  <div style={{ fontSize: 11.5, color: "var(--ink-3)", fontStyle: "italic" }}>{tpl.title}</div>
+                  <div style={{ fontSize: 11.5, color: "var(--ink-3)" }}>Name it, pick an icon and color</div>
                 </div>
-                {already && <span className="mono" style={{ fontSize: 10, color: "var(--ok)" }}>added</span>}
               </button>
-            );
-          })}
-        </div>
-        <div style={{ padding: "12px 20px", borderTop: "1px solid var(--line)", background: "var(--surface-2)",
-          display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 11.5, color: "var(--ink-3)",
-        }}>
-          <span>Empty subjects start with zero units, resources, and tasks — fill them up as you go.</span>
-          <button onClick={onClose} style={{ fontSize: 12, color: "var(--ink-2)" }}>Cancel</button>
-        </div>
+            </div>
+            <div style={{ padding: "12px 20px", borderTop: "1px solid var(--line)", background: "var(--surface-2)",
+              display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 11.5, color: "var(--ink-3)",
+            }}>
+              <span>Subjects start empty — fill them with notes, lectures, and tasks as you go.</span>
+              <button onClick={resetAndClose} style={{ fontSize: 12, color: "var(--ink-2)" }}>Cancel</button>
+            </div>
+          </>
+        )}
+
+        {/* Custom creation form */}
+        {view === "custom" && (
+          <div style={{ padding: 20, display: "flex", flexDirection: "column", gap: 18 }}>
+            {/* Name + Code */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 10 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <label className="label-xs">Subject name *</label>
+                <input autoFocus value={form.name}
+                  onChange={e => { setForm(f => ({ ...f, name: e.target.value })); setNameErr(false); }}
+                  onKeyDown={e => e.key === "Enter" && submitCustom()}
+                  placeholder="e.g. Cognitive Science"
+                  style={{
+                    padding: "9px 11px", border: `1px solid ${nameErr ? "var(--due)" : "var(--line)"}`,
+                    borderRadius: "var(--r)", fontSize: "var(--fs-14)",
+                    background: "var(--surface)", color: "var(--ink)",
+                  }} />
+                {nameErr && <span style={{ fontSize: 11, color: "var(--due)" }}>Name is required.</span>}
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <label className="label-xs">Course code</label>
+                <input value={form.code} onChange={e => setForm(f => ({ ...f, code: e.target.value }))}
+                  placeholder="e.g. PSYC 210"
+                  style={{
+                    width: 120, padding: "9px 11px", border: "1px solid var(--line)",
+                    borderRadius: "var(--r)", fontSize: "var(--fs-14)",
+                    background: "var(--surface)", color: "var(--ink)",
+                  }} />
+              </div>
+            </div>
+
+            {/* Description */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <label className="label-xs">Focus area / description</label>
+              <input value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+                placeholder="e.g. Memory, perception, and decision-making"
+                style={{
+                  padding: "9px 11px", border: "1px solid var(--line)",
+                  borderRadius: "var(--r)", fontSize: "var(--fs-14)",
+                  background: "var(--surface)", color: "var(--ink)",
+                }} />
+            </div>
+
+            {/* Icon picker */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <label className="label-xs">Icon</label>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                {CUSTOM_ICON_OPTIONS.map(key => {
+                  const I = Ic[key];
+                  const sel = form.icon === key;
+                  const colorVars = getCustomColorVars(form.color);
+                  return (
+                    <button key={key} onClick={() => setForm(f => ({ ...f, icon: key }))}
+                      title={key}
+                      style={{
+                        width: 36, height: 36, borderRadius: "var(--r)",
+                        border: `1px solid ${sel ? "var(--accent-line)" : "var(--line)"}`,
+                        background: sel ? "var(--accent-soft)" : "var(--surface)",
+                        color: sel ? "var(--accent)" : "var(--ink-3)",
+                        display: "grid", placeItems: "center",
+                        transition: "border-color 100ms, background 100ms",
+                        ...colorVars,
+                        ...(sel ? { background: "var(--s-soft)", color: "var(--s)", borderColor: "var(--s-line)" } : {}),
+                      }}>
+                      <span style={{ width: 17, height: 17 }}>{I && <I />}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Color picker */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <label className="label-xs">Color</label>
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                {colorKeys.map(key => (
+                  <button key={key} title={key}
+                    onClick={() => setForm(f => ({ ...f, color: key }))}
+                    style={colorSwatchStyle(key, form.color === key)} />
+                ))}
+                <span style={{ fontSize: 11.5, color: "var(--ink-3)", marginLeft: 4, textTransform: "capitalize" }}>{form.color}</span>
+              </div>
+            </div>
+
+            {/* Tag */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <label className="label-xs">Category</label>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                {CUSTOM_TAG_OPTIONS.map(tag => (
+                  <button key={tag} onClick={() => setForm(f => ({ ...f, tag }))}
+                    style={{
+                      padding: "5px 12px", borderRadius: 100,
+                      border: `1px solid ${form.tag === tag ? "var(--accent-line)" : "var(--line)"}`,
+                      background: form.tag === tag ? "var(--accent-soft)" : "var(--surface)",
+                      color: form.tag === tag ? "var(--accent)" : "var(--ink-3)",
+                      fontSize: "var(--fs-13)", cursor: "pointer",
+                      transition: "border-color 100ms, background 100ms",
+                    }}>{tag}</button>
+                ))}
+              </div>
+            </div>
+
+            {/* Preview + actions */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 4 }}>
+              {/* Mini preview */}
+              {form.name.trim() && (() => {
+                const I = Ic[form.icon];
+                const colorVars = getCustomColorVars(form.color);
+                return (
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, ...colorVars }}>
+                    <span style={{
+                      width: 32, height: 32, borderRadius: 8,
+                      background: "var(--s-soft)", color: "var(--s)",
+                      display: "grid", placeItems: "center", border: "1px solid var(--s-line)",
+                    }}>
+                      <span style={{ width: 17, height: 17 }}>{I ? <I /> : <span style={{ fontSize: 11, fontWeight: 700 }}>{form.name.slice(0, 2).toUpperCase()}</span>}</span>
+                    </span>
+                    <div>
+                      <div style={{ fontSize: "var(--fs-14)", fontWeight: 500, color: "var(--s)" }}>{form.name}</div>
+                      {form.code && <div className="mono" style={{ fontSize: 11, color: "var(--ink-3)" }}>{form.code}</div>}
+                    </div>
+                  </div>
+                );
+              })()}
+              {!form.name.trim() && <span style={{ fontSize: 12, color: "var(--ink-4)" }}>Preview will appear here</span>}
+
+              <div style={{ display: "flex", gap: 8 }}>
+                <button onClick={() => setView("gallery")} style={{
+                  padding: "8px 14px", borderRadius: "var(--r)", fontSize: "var(--fs-13)",
+                  border: "1px solid var(--line)", background: "var(--surface)", color: "var(--ink-2)",
+                }}>Back</button>
+                <button onClick={submitCustom} style={{
+                  padding: "8px 16px", borderRadius: "var(--r)", fontSize: "var(--fs-13)",
+                  background: "var(--accent)", color: "var(--on-accent)", fontWeight: 500,
+                }}>Create subject</button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -48,17 +48,49 @@ const SUBJECT_ICONS = {
   lit: Ic.Quill, phys: Ic.Atom, hist: Ic.Globe,
 };
 
+const CUSTOM_COLORS = {
+  indigo:  { l: "oklch(48% 0.13 265)", d: "oklch(72% 0.10 235)", sl: "oklch(94% 0.04 265)", sd: "oklch(28% 0.05 235)", ll: "oklch(80% 0.08 265)", ld: "oklch(40% 0.07 235)" },
+  emerald: { l: "oklch(52% 0.11 155)", d: "oklch(74% 0.09 155)", sl: "oklch(94% 0.03 155)", sd: "oklch(26% 0.04 155)", ll: "oklch(80% 0.06 155)", ld: "oklch(38% 0.06 155)" },
+  amber:   { l: "oklch(54% 0.12 75)",  d: "oklch(76% 0.10 80)",  sl: "oklch(95% 0.03 75)",  sd: "oklch(28% 0.05 80)",  ll: "oklch(82% 0.06 75)",  ld: "oklch(38% 0.07 80)" },
+  violet:  { l: "oklch(46% 0.13 300)", d: "oklch(72% 0.10 295)", sl: "oklch(95% 0.03 300)", sd: "oklch(28% 0.05 295)", ll: "oklch(82% 0.06 300)", ld: "oklch(40% 0.07 295)" },
+  rose:    { l: "oklch(50% 0.13 5)",   d: "oklch(74% 0.10 10)",  sl: "oklch(95% 0.03 5)",   sd: "oklch(28% 0.05 10)",  ll: "oklch(82% 0.06 5)",   ld: "oklch(38% 0.07 10)" },
+  cyan:    { l: "oklch(52% 0.10 210)", d: "oklch(74% 0.09 210)", sl: "oklch(94% 0.03 210)", sd: "oklch(26% 0.04 210)", ll: "oklch(80% 0.06 210)", ld: "oklch(38% 0.06 210)" },
+  slate:   { l: "oklch(40% 0.04 260)", d: "oklch(78% 0.02 260)", sl: "oklch(94% 0.01 260)", sd: "oklch(26% 0.01 260)", ll: "oklch(80% 0.02 260)", ld: "oklch(38% 0.02 260)" },
+};
+
+function getCustomColorVars(colorKey) {
+  const c = CUSTOM_COLORS[colorKey] || CUSTOM_COLORS.indigo;
+  const dark = document.documentElement.dataset.theme === "dark";
+  return { "--s": dark ? c.d : c.l, "--s-soft": dark ? c.sd : c.sl, "--s-line": dark ? c.ld : c.ll };
+}
+
 function Sidebar({ route, setRoute, subjects, workflow, setWorkflow, user, onAddSubject }) {
   const [openSubjects, setOpen] = useState(true);
+  const [collapsed, setCollapsed] = useState(() => localStorage.getItem("ll-sidebar-collapsed") === "true");
+  const [showLabels, setShowLabels] = useState(() => localStorage.getItem("ll-sidebar-collapsed") !== "true");
+
+  useEffect(() => { localStorage.setItem("ll-sidebar-collapsed", collapsed); }, [collapsed]);
+
+  const toggleCollapse = () => {
+    if (collapsed) {
+      setCollapsed(false);
+      setTimeout(() => setShowLabels(true), 220);
+    } else {
+      setShowLabels(false);
+      setCollapsed(true);
+    }
+  };
 
   const NavItem = ({ id, icon: I, label, badge }) => {
     const active = route.view === id;
     return (
       <button
         onClick={() => setRoute({ view: id })}
+        title={!showLabels ? label : undefined}
         style={{
-          display: "flex", alignItems: "center", gap: 10, width: "100%",
-          padding: "7px 10px", borderRadius: "var(--r)",
+          display: "flex", alignItems: "center", justifyContent: !showLabels ? "center" : undefined,
+          gap: showLabels ? 10 : 0, width: "100%",
+          padding: showLabels ? "7px 10px" : "9px 0", borderRadius: "var(--r)",
           color: active ? "var(--ink)" : "var(--ink-2)",
           background: active ? "var(--surface-2)" : "transparent",
           fontSize: "var(--fs-14)", fontWeight: active ? 500 : 400,
@@ -67,74 +99,105 @@ function Sidebar({ route, setRoute, subjects, workflow, setWorkflow, user, onAdd
         onMouseEnter={e => !active && (e.currentTarget.style.background = "var(--surface-2)")}
         onMouseLeave={e => !active && (e.currentTarget.style.background = "transparent")}
       >
-        <span style={{ width: 16, height: 16, color: active ? "var(--accent)" : "var(--ink-3)" }}><I /></span>
-        <span style={{ flex: 1, textAlign: "left" }}>{label}</span>
-        {badge && <span className="mono" style={{ fontSize: 10.5, color: "var(--ink-3)" }}>{badge}</span>}
+        <span style={{ width: 16, height: 16, color: active ? "var(--accent)" : "var(--ink-3)", flexShrink: 0 }}><I /></span>
+        {showLabels && <span style={{ flex: 1, textAlign: "left" }}>{label}</span>}
+        {showLabels && badge && <span className="mono" style={{ fontSize: 10.5, color: "var(--ink-3)" }}>{badge}</span>}
       </button>
     );
   };
 
   const SubjectItem = ({ s }) => {
     const SI = SUBJECT_ICONS[s.id];
+    const isCustom = !SI;
+    const CI = isCustom && s.icon ? Ic[s.icon] : null;
     const active = route.view === "subject" && route.id === s.id;
+    const colorVars = isCustom ? getCustomColorVars(s.color) : {};
     return (
       <button
         data-subject={s.id}
         onClick={() => setRoute({ view: "subject", id: s.id })}
+        title={!showLabels ? s.name : undefined}
         style={{
-          display: "flex", alignItems: "center", gap: 10, width: "100%",
-          padding: "6px 10px 6px 22px", borderRadius: "var(--r)",
+          display: "flex", alignItems: "center", justifyContent: !showLabels ? "center" : undefined,
+          gap: showLabels ? 10 : 0, width: "100%",
+          padding: showLabels ? "6px 10px 6px 22px" : "7px 0", borderRadius: "var(--r)",
           color: active ? "var(--ink)" : "var(--ink-2)",
           background: active ? "var(--surface-2)" : "transparent",
           fontSize: "var(--fs-14)", fontWeight: active ? 500 : 400,
-          position: "relative",
+          position: "relative", ...colorVars,
         }}
         onMouseEnter={e => !active && (e.currentTarget.style.background = "var(--surface-2)")}
         onMouseLeave={e => !active && (e.currentTarget.style.background = "transparent")}
       >
-        <span style={{
-          position: "absolute", left: 10, top: 6, bottom: 6, width: 3,
-          background: active ? "var(--s)" : "transparent", borderRadius: 2,
-        }} />
-        <span style={{ width: 14, height: 14, color: "var(--s)" }}>{SI && <SI />}</span>
-        <span style={{ flex: 1, textAlign: "left" }}>{s.name}</span>
-        <span className="mono tabular" style={{ fontSize: 10.5, color: "var(--ink-3)" }}>{s.progress}%</span>
+        {showLabels && (
+          <span style={{
+            position: "absolute", left: 10, top: 6, bottom: 6, width: 3,
+            background: active ? "var(--s)" : "transparent", borderRadius: 2,
+          }} />
+        )}
+        <span style={{ width: 14, height: 14, color: "var(--s)", display: "grid", placeItems: "center", flexShrink: 0 }}>
+          {SI ? <SI /> : CI ? <CI /> : (
+            <span style={{ fontSize: 9, fontWeight: 700, fontFamily: "var(--font-mono)", lineHeight: 1 }}>
+              {(s.name || "?").slice(0, 2).toUpperCase()}
+            </span>
+          )}
+        </span>
+        {showLabels && <span style={{ flex: 1, textAlign: "left" }}>{s.name}</span>}
+        {showLabels && <span className="mono tabular" style={{ fontSize: 10.5, color: "var(--ink-3)" }}>{s.progress}%</span>}
       </button>
     );
   };
 
   return (
     <aside style={{
-      width: "var(--rail-w)", borderRight: "1px solid var(--line)",
+      width: collapsed ? 64 : "var(--rail-w)", borderRight: "1px solid var(--line)",
       background: "var(--rail)", display: "flex", flexDirection: "column",
       flexShrink: 0, height: "100%",
+      transition: "width 240ms cubic-bezier(0.4, 0, 0.2, 1)", overflow: "hidden",
     }}>
-      <div style={{ padding: "14px 14px 12px", display: "flex", alignItems: "center", gap: 9 }}>
+      <div style={{
+        padding: showLabels ? "14px 14px 12px" : "14px 0 12px",
+        display: "flex", alignItems: "center", gap: 9,
+        justifyContent: showLabels ? undefined : "center",
+      }}>
         <span style={{
           width: 24, height: 24, borderRadius: 6, background: "var(--ink)",
           display: "grid", placeItems: "center", color: "var(--bg)",
-          fontFamily: "var(--font-serif)", fontWeight: 600, fontSize: 14,
+          fontFamily: "var(--font-serif)", fontWeight: 600, fontSize: 14, flexShrink: 0,
         }}>L</span>
-        <div style={{ lineHeight: 1.1 }}>
-          <div style={{ fontWeight: 600, fontSize: "var(--fs-15)", letterSpacing: "-0.01em" }}>LearnLens</div>
-          <div className="mono" style={{ fontSize: 10, color: "var(--ink-3)" }}>academic.os · v3</div>
-        </div>
+        {showLabels && (
+          <div style={{ flex: 1, lineHeight: 1.1 }}>
+            <div style={{ fontWeight: 600, fontSize: "var(--fs-15)", letterSpacing: "-0.01em" }}>LearnLens</div>
+            <div className="mono" style={{ fontSize: 10, color: "var(--ink-3)" }}>academic.os · v3</div>
+          </div>
+        )}
+        <button
+          onClick={toggleCollapse}
+          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          style={{ width: 20, height: 20, display: "grid", placeItems: "center", color: "var(--ink-3)", borderRadius: "var(--r-sm)", flexShrink: 0 }}
+          onMouseEnter={e => e.currentTarget.style.color = "var(--ink)"}
+          onMouseLeave={e => e.currentTarget.style.color = "var(--ink-3)"}
+        >
+          <span style={{ width: 13, height: 13, transform: collapsed ? "none" : "rotate(180deg)", transition: "transform 240ms" }}><Ic.Chev /></span>
+        </button>
       </div>
 
-      <div style={{ padding: "0 10px 6px" }}>
-        <div style={{
-          display: "flex", alignItems: "center", gap: 6,
-          padding: "6px 10px", borderRadius: "var(--r)",
-          background: "var(--surface)", border: "1px solid var(--line)",
-          color: "var(--ink-3)", fontSize: "var(--fs-13)",
-        }}>
-          <span style={{ width: 14, height: 14 }}><Ic.Search /></span>
-          <span style={{ flex: 1 }}>Jump to…</span>
-          <span className="mono" style={{ fontSize: 10, padding: "1px 5px", border: "1px solid var(--line)", borderRadius: 3 }}>⌘K</span>
+      {showLabels && (
+        <div style={{ padding: "0 10px 6px" }}>
+          <div style={{
+            display: "flex", alignItems: "center", gap: 6,
+            padding: "6px 10px", borderRadius: "var(--r)",
+            background: "var(--surface)", border: "1px solid var(--line)",
+            color: "var(--ink-3)", fontSize: "var(--fs-13)",
+          }}>
+            <span style={{ width: 14, height: 14 }}><Ic.Search /></span>
+            <span style={{ flex: 1 }}>Jump to…</span>
+            <span className="mono" style={{ fontSize: 10, padding: "1px 5px", border: "1px solid var(--line)", borderRadius: 3 }}>⌘K</span>
+          </div>
         </div>
-      </div>
+      )}
 
-      <nav style={{ padding: "8px 10px", display: "flex", flexDirection: "column", gap: 1 }}>
+      <nav style={{ padding: showLabels ? "8px 10px" : "8px 4px", display: "flex", flexDirection: "column", gap: 1 }}>
         <NavItem id="dashboard" icon={Ic.Home}  label="Today" />
         <NavItem id="inbox"     icon={Ic.Inbox} label="Inbox" />
         <NavItem id="library"   icon={Ic.Books} label="Library" />
@@ -143,58 +206,105 @@ function Sidebar({ route, setRoute, subjects, workflow, setWorkflow, user, onAdd
         <NavItem id="aitools"   icon={Ic.Bot}   label="AI Tools" badge="4" />
       </nav>
 
-      <div style={{ padding: "12px 14px 4px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <button onClick={() => setOpen(o => !o)} style={{
-          display: "flex", alignItems: "center", gap: 4, color: "var(--ink-3)",
-          fontSize: 10.5, letterSpacing: "0.08em", textTransform: "uppercase", fontWeight: 500,
-        }}>
-          <span style={{ width: 10, height: 10, transform: openSubjects ? "rotate(90deg)" : "none", transition: "transform 120ms" }}><Ic.Chev /></span>
-          Subjects {subjects.length > 0 && <span className="mono" style={{ color: "var(--ink-4)", marginLeft: 2 }}>{subjects.length}</span>}
-        </button>
+      <div style={{
+        padding: showLabels ? "12px 14px 4px" : "12px 0 4px",
+        display: "flex", alignItems: "center",
+        justifyContent: showLabels ? "space-between" : "center",
+      }}>
+        {showLabels && (
+          <button onClick={() => setOpen(o => !o)} style={{
+            display: "flex", alignItems: "center", gap: 4, color: "var(--ink-3)",
+            fontSize: 10.5, letterSpacing: "0.08em", textTransform: "uppercase", fontWeight: 500,
+          }}>
+            <span style={{ width: 10, height: 10, transform: openSubjects ? "rotate(90deg)" : "none", transition: "transform 120ms" }}><Ic.Chev /></span>
+            Subjects {subjects.length > 0 && <span className="mono" style={{ color: "var(--ink-4)", marginLeft: 2 }}>{subjects.length}</span>}
+          </button>
+        )}
         <button onClick={onAddSubject} title="Add subject" style={{ color: "var(--ink-3)", width: 14, height: 14 }}><Ic.Plus /></button>
       </div>
 
-      {openSubjects && (
-        <div style={{ padding: "2px 10px", display: "flex", flexDirection: "column", gap: 1 }}>
+      {(openSubjects || !showLabels) && (
+        <div style={{ padding: showLabels ? "2px 10px" : "2px 4px", display: "flex", flexDirection: "column", gap: 1 }}>
           {subjects.length === 0 ? (
-            <button onClick={onAddSubject} style={{
-              display: "flex", alignItems: "center", gap: 8,
-              padding: "8px 10px", borderRadius: "var(--r)",
-              border: "1px dashed var(--line-strong)",
-              color: "var(--ink-3)", fontSize: 12,
-              background: "transparent",
-            }}
-              onMouseEnter={e => { e.currentTarget.style.color = "var(--accent)"; e.currentTarget.style.borderColor = "var(--accent-line)"; }}
-              onMouseLeave={e => { e.currentTarget.style.color = "var(--ink-3)"; e.currentTarget.style.borderColor = "var(--line-strong)"; }}>
-              <span style={{ width: 12, height: 12 }}><Ic.Plus /></span>
-              Add your first subject
-            </button>
+            showLabels && (
+              <button onClick={onAddSubject} style={{
+                display: "flex", alignItems: "center", gap: 8,
+                padding: "8px 10px", borderRadius: "var(--r)",
+                border: "1px dashed var(--line-strong)",
+                color: "var(--ink-3)", fontSize: 12,
+                background: "transparent",
+              }}
+                onMouseEnter={e => { e.currentTarget.style.color = "var(--accent)"; e.currentTarget.style.borderColor = "var(--accent-line)"; }}
+                onMouseLeave={e => { e.currentTarget.style.color = "var(--ink-3)"; e.currentTarget.style.borderColor = "var(--line-strong)"; }}>
+                <span style={{ width: 12, height: 12 }}><Ic.Plus /></span>
+                Add your first subject
+              </button>
+            )
           ) : (
             subjects.map(s => <SubjectItem key={s.id} s={s} />)
           )}
         </div>
       )}
 
-      <div style={{ marginTop: "auto", padding: "12px 14px", borderTop: "1px solid var(--line)" }}>
-        <div className="label-xs" style={{ marginBottom: 8 }}>Workflow</div>
-        <WorkflowSwitch value={workflow} onChange={setWorkflow} />
-        <ProfileWidget user={user} />
+      <div style={{ marginTop: "auto", padding: showLabels ? "12px 14px" : "12px 0", borderTop: "1px solid var(--line)" }}>
+        {showLabels && <div className="label-xs" style={{ marginBottom: 8 }}>Workflow</div>}
+        <WorkflowSwitch value={workflow} onChange={setWorkflow} collapsed={!showLabels} />
+        <ProfileWidget user={user} collapsed={!showLabels} />
       </div>
     </aside>
   );
 }
 
-function ProfileWidget({ user }) {
+function ProfileWidget({ user, collapsed }) {
   const [open, setOpen] = useState(false);
+  const [popupPos, setPopupPos] = useState({ bottom: 0, left: 0, width: 0 });
+  const btnRef = useRef(null);
   const u = user || { name: "Student", initials: "S?", role: "—", level: 1, xp: 0, xpForNext: 100, currentStreak: 0, longestStreak: 0, status: { label: "Online", emoji: "🟢" }, avatarHue: 265 };
   const xpPct = Math.min(1, u.xp / u.xpForNext);
   const streakPct = Math.min(1, u.currentStreak / Math.max(u.longestStreak, 1));
   const ringSize = 44, stroke = 2.2, r = (ringSize - stroke) / 2;
   const c = 2 * Math.PI * r;
 
+  const handleToggle = () => {
+    if (!open && btnRef.current) {
+      const rect = btnRef.current.getBoundingClientRect();
+      setPopupPos({ bottom: window.innerHeight - rect.top + 6, left: rect.left, width: rect.width });
+    }
+    setOpen(o => !o);
+  };
+
+  if (collapsed) {
+    const cs = 36, cStroke = 2, cR = (cs - cStroke) / 2, cC = 2 * Math.PI * cR;
+    return (
+      <div style={{ marginTop: 12, display: "flex", justifyContent: "center" }}>
+        <div title={u.name} style={{ position: "relative", width: cs, height: cs }}>
+          <svg width={cs} height={cs} style={{ position: "absolute", inset: 0, transform: "rotate(-90deg)" }}>
+            <circle cx={cs/2} cy={cs/2} r={cR} fill="none" stroke="var(--line)" strokeWidth={cStroke} />
+            <circle cx={cs/2} cy={cs/2} r={cR} fill="none" stroke={`oklch(70% 0.13 ${u.avatarHue})`}
+              strokeWidth={cStroke} strokeLinecap="round"
+              strokeDasharray={cC} strokeDashoffset={cC * (1 - streakPct)} />
+          </svg>
+          <div style={{
+            position: "absolute", inset: 3, borderRadius: "50%",
+            background: `linear-gradient(135deg, oklch(82% 0.08 ${u.avatarHue}), oklch(56% 0.14 ${u.avatarHue}))`,
+            display: "grid", placeItems: "center",
+            color: "white", fontWeight: 600, fontSize: 10,
+            letterSpacing: "0.02em",
+            boxShadow: "inset 0 0 0 1px color-mix(in oklch, white 20%, transparent)",
+          }}>{u.initials}</div>
+          <span style={{
+            position: "absolute", right: -1, bottom: -1, width: 8, height: 8,
+            borderRadius: "50%", background: "var(--ok)",
+            border: "2px solid var(--rail)",
+          }} />
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div style={{ marginTop: 16, position: "relative" }}>
-      <button onClick={() => setOpen(o => !o)} style={{
+    <div style={{ marginTop: 16 }}>
+      <button ref={btnRef} onClick={handleToggle} style={{
         display: "flex", alignItems: "center", gap: 10, width: "100%",
         padding: "8px 8px 8px 6px", borderRadius: 10,
         background: open ? "var(--surface-2)" : "transparent",
@@ -258,9 +368,9 @@ function ProfileWidget({ user }) {
 
       {open && (
         <div style={{
-          position: "absolute", bottom: "calc(100% + 6px)", left: 0, right: 0,
+          position: "fixed", bottom: popupPos.bottom, left: popupPos.left, width: popupPos.width,
           background: "var(--surface)", border: "1px solid var(--line)",
-          borderRadius: 10, boxShadow: "var(--shadow-lg)", padding: 6, zIndex: 40,
+          borderRadius: 10, boxShadow: "var(--shadow-lg)", padding: 6, zIndex: 200,
           animation: "ll-fade-in 140ms ease",
         }}>
           <ProfileMenuRow icon={Ic.Sparkle} label="Set status"   hint={u.status?.label} />
@@ -299,7 +409,17 @@ const WORKFLOWS = [
   { id: "quick",   label: "Quick practice", hint: "10-min sprints" },
 ];
 
-function WorkflowSwitch({ value, onChange }) {
+function WorkflowSwitch({ value, onChange, collapsed }) {
+  if (collapsed) {
+    const active = WORKFLOWS.find(w => w.id === value);
+    return (
+      <div style={{ display: "flex", justifyContent: "center", padding: "4px 0" }}>
+        <span title={active?.label} style={{
+          width: 7, height: 7, borderRadius: "50%", background: "var(--accent)", display: "block",
+        }} />
+      </div>
+    );
+  }
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
       {WORKFLOWS.map(w => {
@@ -520,4 +640,4 @@ function SectionTitle({ kicker, title, action, style }) {
   );
 }
 
-export { Ic, SUBJECT_ICONS, Sidebar, TopBar, CommandBar, Pill, Btn, Card, SectionTitle, WORKFLOWS };
+export { Ic, SUBJECT_ICONS, CUSTOM_COLORS, getCustomColorVars, Sidebar, TopBar, CommandBar, Pill, Btn, Card, SectionTitle, WORKFLOWS };
