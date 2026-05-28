@@ -147,13 +147,23 @@ export default function App() {
   const openAddSubject = () => setAddSubjOpen(true);
 
   const addSubject = (template) => {
-    setUserSubjects(s => {
-      if (s.find(x => x.id === template.id)) return s;
-      return [...s, blankSubject(template)];
-    });
-    setAddSubjOpen(false);
-    setRoute({ view: "subject", id: template.id });
-  };
+  setUserSubjects((s) => {
+    if (s.find((x) => x.id === template.id)) return s;
+    return [...s, blankSubject(template)];
+  });
+
+  setAddSubjOpen(false);
+  setRoute({ view: "subject", id: template.id });
+};
+
+const deleteSubject = (id) => {
+  setUserSubjects((s) => s.filter((x) => x.id !== id));
+
+  // if currently opened subject gets deleted
+  if (route.view === "subject" && route.id === id) {
+    setRoute({ view: "dashboard" });
+  }
+};
 
   let body = null;
   if (route.view === "dashboard")  body = <Dashboard setRoute={setRoute} workflow={t.workflow} onAddSubject={openAddSubject} />;
@@ -194,8 +204,13 @@ export default function App() {
 
       <CommandBar open={cmdOpen} onClose={() => setCmdOpen(false)} subjects={subjects} setRoute={setRoute} />
 
-      <AddSubjectModal open={addSubjOpen} onClose={() => setAddSubjOpen(false)}
-        existing={userSubjects} onAdd={addSubject} />
+      <AddSubjectModal
+        open={addSubjOpen}
+        onClose={() => setAddSubjOpen(false)}
+        existing={userSubjects}
+        onAdd={addSubject}
+        onDelete={deleteSubject}
+      />
 
       <TimerPanel open={timerOpen} onClose={() => setTimerOpen(false)} />
 
@@ -250,7 +265,7 @@ export default function App() {
 // ── Add Subject modal ──────────────────────────────────────────────────────
 const CUSTOM_TAG_OPTIONS = ["Core", "Elective", "Lab", "Seminar", "Independent", "Language", "Other"];
 
-function AddSubjectModal({ open, onClose, existing, onAdd }) {
+function AddSubjectModal({ open, onClose, existing, onAdd, onDelete }) {
   const [form, setForm] = useState({
     name: "",
     code: "",
@@ -544,6 +559,119 @@ function AddSubjectModal({ open, onClose, existing, onAdd }) {
             </div>
           </div>
 
+          {/* Existing Subjects */}
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: 10,
+              paddingTop: 4,
+            }}
+          >
+            <label className="label-xs">Your Subjects</label>
+
+            {existing.length === 0 ? (
+              <div
+                style={{
+                  fontSize: 13,
+                  color: "var(--ink-3)",
+                  padding: "10px 0",
+                }}
+              >
+                No custom subjects created yet.
+              </div>
+            ) : (
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 8,
+                  maxHeight: 180,
+                  overflowY: "auto",
+                  paddingRight: 4,
+                }}
+              >
+                {existing.map((subj) => {
+                  const IconComp = Ic[subj.icon] || Ic.Note;
+
+                  return (
+                    <div
+                      key={subj.id}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        border: "1px solid var(--line)",
+                        borderRadius: "var(--r)",
+                        padding: "10px 12px",
+                        background: "var(--surface-2)",
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 10,
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: 30,
+                            height: 30,
+                            borderRadius: 8,
+                            background: "var(--accent-soft)",
+                            color: "var(--accent)",
+                            display: "grid",
+                            placeItems: "center",
+                          }}
+                        >
+                          <span style={{ width: 15, height: 15 }}>
+                            <IconComp />
+                          </span>
+                        </div>
+
+                        <div>
+                          <div
+                            style={{
+                              fontSize: 14,
+                              fontWeight: 500,
+                              color: "var(--ink)",
+                            }}
+                          >
+                            {subj.name}
+                          </div>
+
+                          <div
+                            style={{
+                              fontSize: 12,
+                              color: "var(--ink-3)",
+                            }}
+                          >
+                            {subj.tag || "Custom"}
+                          </div>
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={() => onDelete(subj.id)}
+                        style={{
+                          padding: "6px 10px",
+                          borderRadius: 8,
+                          border: "1px solid var(--line)",
+                          background: "transparent",
+                          color: "var(--due)",
+                          fontSize: 12,
+                          cursor: "pointer",
+                        }}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
           {/* Footer */}
           <div
             style={{
