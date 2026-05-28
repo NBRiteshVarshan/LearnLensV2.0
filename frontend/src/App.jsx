@@ -4,7 +4,7 @@ import { useAppData } from "./learnlens/data.js";
 import { Sidebar, TopBar, CommandBar, Ic, SUBJECT_ICONS, CUSTOM_COLORS, getCustomColorVars, WORKFLOWS } from "./learnlens/Shell.jsx";
 import { Dashboard } from "./learnlens/Dashboard.jsx";
 import { SubjectRouter } from "./learnlens/Workspaces.jsx";
-import { Library, Calendar_View, Analytics, Inbox } from "./learnlens/Views.jsx";
+import { Library, Calendar_View, Analytics } from "./learnlens/Views.jsx";
 import { AITools } from "./learnlens/AITools.jsx";
 import { TimerProvider, TimerPill, TimerPanel } from "./learnlens/StudyTimer.jsx";
 import { AnalyticsProvider } from "./learnlens/useStudyAnalytics.jsx";
@@ -117,8 +117,6 @@ export default function App() {
     if (route.view === "library")   return [{ label: "Library",   icon: Ic.Books }];
     if (route.view === "calendar")  return [{ label: "Calendar",  icon: Ic.Cal }];
     if (route.view === "analytics") return [{ label: "Analytics", icon: Ic.Chart }];
-    if (route.view === "inbox")     return [{ label: "Inbox",     icon: Ic.Inbox }];
-    if (route.view === "aitools")   return [{ label: "AI Tools",  icon: Ic.Bot }];
     if (route.view === "subject") {
       const s = subjects.find(x => x.id === route.id);
       if (!s) return [{ label: "Subjects", icon: Ic.Books }];
@@ -167,12 +165,55 @@ const deleteSubject = (id) => {
 
   let body = null;
   if (route.view === "dashboard")  body = <Dashboard setRoute={setRoute} workflow={t.workflow} onAddSubject={openAddSubject} />;
-  else if (route.view === "subject")   body = <SubjectRouter id={route.id} />;
+  else if (route.view === "subject")
+  body = (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: 20,
+        paddingBottom: 40,
+      }}
+    >
+      <SubjectRouter id={route.id} />
+
+      <div
+        style={{
+          margin: "0 24px",
+          borderTop: "1px solid var(--line)",
+          paddingTop: 20,
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            marginBottom: 14,
+          }}
+        >
+          <span style={{ width: 18, height: 18, color: "var(--accent)" }}>
+            <Ic.Bot />
+          </span>
+
+          <div
+            style={{
+              fontSize: 18,
+              fontWeight: 600,
+              color: "var(--ink)",
+            }}
+          >
+            AI Study Tools
+          </div>
+        </div>
+
+        <AITools subjectId={route.id} />
+      </div>
+    </div>
+  );
   else if (route.view === "library")   body = <Library />;
   else if (route.view === "calendar")  body = <Calendar_View />;
   else if (route.view === "analytics") body = <Analytics />;
-  else if (route.view === "inbox")     body = <Inbox />;
-  else if (route.view === "aitools")   body = <AITools />;
 
   return (
     <TimerProvider>
@@ -247,9 +288,7 @@ const deleteSubject = (id) => {
         </TweakSection>
         <TweakSection label="Jump to">
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, padding: "4px 0" }}>
-            <button onClick={() => setRoute({ view: "dashboard" })} style={jumpBtn}>Today</button>
-            <button onClick={() => setRoute({ view: "aitools" })}   style={jumpBtn}>AI Tools</button>
-            <button onClick={() => setRoute({ view: "inbox" })}     style={jumpBtn}>Inbox</button>
+            <button onClick={() => setRoute({ view: "dashboard" })} style={jumpBtn}>Today</button> 
             <button onClick={() => setRoute({ view: "library" })}   style={jumpBtn}>Library</button>
             <button onClick={() => setRoute({ view: "calendar" })}  style={jumpBtn}>Calendar</button>
             <button onClick={() => setRoute({ view: "analytics" })} style={jumpBtn}>Analytics</button>

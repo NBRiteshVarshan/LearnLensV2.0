@@ -198,12 +198,10 @@ function Sidebar({ route, setRoute, subjects, workflow, setWorkflow, user, onAdd
       )}
 
       <nav style={{ padding: showLabels ? "8px 10px" : "8px 4px", display: "flex", flexDirection: "column", gap: 1 }}>
-        <NavItem id="dashboard" icon={Ic.Home}  label="Today" />
-        <NavItem id="inbox"     icon={Ic.Inbox} label="Inbox" />
+        <NavItem id="dashboard" icon={Ic.Home}  label="Today" />   
         <NavItem id="library"   icon={Ic.Books} label="Library" />
         <NavItem id="calendar"  icon={Ic.Cal}   label="Calendar" />
         <NavItem id="analytics" icon={Ic.Chart} label="Analytics" />
-        <NavItem id="aitools"   icon={Ic.Bot}   label="AI Tools" badge="4" />
       </nav>
 
       <div style={{
