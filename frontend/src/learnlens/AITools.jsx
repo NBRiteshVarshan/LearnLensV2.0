@@ -1,3 +1,5 @@
+const API = "http://127.0.0.1:8000";
+
 import React, { useState, useRef, useEffect } from "react";
 import { useAppData } from "./data.js";
 import { Card, Pill, Btn, Ic } from "./Shell.jsx";
@@ -147,22 +149,55 @@ function UploadPanel({ pdfs, setPdfs, setSelected }) {
   const [name, setName] = useState("");
   const inputRef = useRef(null);
 
-  const handleFile = (file) => {
-    setName(file.name);
-    setStage("uploading"); setProgress(0);
-    emitAIActivity({ type: "upload", label: `Uploading ${file.name}`, status: "processing" });
-    const id = setInterval(() => {
-      setProgress(p => {
-        if (p >= 100) {
-          clearInterval(id);
-          setStage("ingesting");
-          emitAIActivity({ type: "embed", label: `Embedding & indexing ${file.name}`, status: "processing" });
-          setTimeout(finish, 1200);
-          return 100;
-        }
-        return p + 7;
+  const handleFile = async (file) => {
+    try {
+      setName(file.name);
+      setStage("uploading");
+
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const uploadRes = await fetch(`${API}/upload`, {
+        method: "POST",
+        body: formData,
       });
-    }, 60);
+
+      if (!uploadRes.ok)
+        throw new Error("Upload failed");
+
+      setStage("ingesting");
+
+      const ingestRes = await fetch(`${API}/ingest`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          filename: file.name,
+        }),
+      });
+
+      if (!ingestRes.ok)
+        throw new Error("Ingestion failed");
+
+      const data = await ingestRes.json();
+
+      const newPdf = {
+        id: Date.now().toString(),
+        name: file.name,
+        chunks: data.chunks,
+        t: "just now",
+      };
+
+      setPdfs((prev) => [newPdf, ...prev]);
+      setSelected((prev) => [newPdf.id, ...prev]);
+
+      setStage("done");
+    } catch (err) {
+      console.error(err);
+      alert(err.message);
+      setStage("idle");
+    }
   };
   const finish = () => {
     const chunks = Math.floor(40 + Math.random() * 80);
@@ -246,24 +281,49 @@ function AskPanel({ pdfs, selected }) {
   const endRef = useRef(null);
   useEffect(() => { endRef.current?.scrollTo({ top: endRef.current.scrollHeight, behavior: "smooth" }); }, [history, loading]);
 
-  const send = () => {
-    if (!q.trim() || noPdfs) return;
-    const userMsg = { role: "user", text: q };
-    const queryText = q;
-    setHistory(h => [...h, userMsg]); setQ(""); setLoading(true);
-    emitAIActivity({ type: "ask", label: `Searching: "${queryText.slice(0, 40)}${queryText.length > 40 ? "…" : ""}"`, status: "processing" });
-    setTimeout(() => {
-      setHistory(h => [...h, {
-        role: "assistant",
-        text: "Based on the indexed notes, a sequence (a_n) in ℝ is Cauchy precisely when its tail diameter shrinks to zero. Formally, for every ε > 0 there exists N such that |a_m − a_n| < ε whenever m, n ≥ N. The completeness of ℝ guarantees every such sequence converges to a real limit (see Theorem 4.3 in Spivak Ch. 7).",
-        cites: [
-          { p: "Spivak_Calculus_Ch7.pdf", page: 124, snippet: "A sequence is Cauchy if its terms eventually crowd together…" },
-          { p: "Spivak_Calculus_Ch7.pdf", page: 131, snippet: "Theorem 4.3 — Every Cauchy sequence in ℝ converges in ℝ." },
-        ],
-      }]);
-      emitAIActivity({ type: "ask", label: `Retrieved 6 chunks — answer generated`, status: "done" });
-      setLoading(false);
-    }, 1100);
+  const send = async () => {
+    if (!q.trim()) return;
+
+    const question = q;
+
+    setHistory((h) => [
+      ...h,
+      {
+        role: "user",
+        text: question,
+      },
+    ]);
+
+    setQ("");
+    setLoading(true);
+
+    try {
+      const res = await fetch(`${API}/ask`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          question,
+          documents: selected,
+        }),
+      });
+
+      const data = await res.json();
+
+      setHistory((h) => [
+        ...h,
+        {
+          role: "assistant",
+          text: data.answer,
+          cites: data.sources || [],
+        },
+      ]);
+    } catch (err) {
+      console.error(err);
+    }
+
+    setLoading(false);
   };
 
   return (
@@ -388,25 +448,31 @@ function SummaryPanel({ pdfs, selected }) {
   const [generated, setGen] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  const run = () => {
+  const run = async () => {
     if (selected.length === 0) return;
-    setLoading(true); setGen(null);
-    emitAIActivity({ type: "summary", label: `Summarising ${selected.length} document${selected.length === 1 ? "" : "s"}`, status: "processing" });
-    setTimeout(() => {
-      setGen({
-        words: length === "short" ? 80 : length === "medium" ? 220 : 420,
-        bullets: [
-          "Cauchy sequences are characterised by their tail diameter shrinking to zero — for every ε > 0, all sufficiently distant terms lie within ε of each other.",
-          "In ℝ, completeness guarantees that every Cauchy sequence converges to a real limit (Theorem 4.3).",
-          "ℚ is not complete: the sequence (1, 1.4, 1.41, 1.414, …) converging to √2 is Cauchy in ℚ but has no rational limit.",
-          "Bolzano–Weierstrass: every bounded sequence in ℝⁿ has a convergent subsequence — a structural cousin of Cauchy completeness.",
-          "Contractive sequences (|aₙ₊₁ − aₙ| ≤ k|aₙ − aₙ₋₁| with k < 1) are always Cauchy, giving a sufficient condition for convergence.",
-        ],
-        sourcesUsed: selected.length,
+
+    setLoading(true);
+
+    try {
+      const res = await fetch(`${API}/summary`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          documents: selected,
+          length,
+        }),
       });
-      emitAIActivity({ type: "summary", label: `Summary ready — ${length} format`, status: "done" });
-      setLoading(false);
-    }, 1400);
+
+      const data = await res.json();
+
+      setGen(data);
+    } catch (err) {
+      console.error(err);
+    }
+
+    setLoading(false);
   };
 
   return (
@@ -519,19 +585,33 @@ function QuizPanel({ pdfs, selected }) {
   // Reset recorded flag when a new quiz is generated
   useEffect(() => { scoreRecorded.current = false; }, [quiz]);
 
-  const generate = () => {
+  const generate = async () => {
     if (selected.length === 0) return;
-    setLoading(true); setQuiz(null); setPicked({});
-    emitAIActivity({ type: "quiz", label: `Generating ${diff.toLowerCase()} quiz from ${selected.length} doc${selected.length === 1 ? "" : "s"}`, status: "processing" });
-    setTimeout(() => {
-      setQuiz([
-        { q: "A sequence (aₙ) in ℝ is Cauchy if and only if:", o: { A: "It is monotonic and bounded.", B: "For every ε > 0 there exists N such that |aₘ − aₙ| < ε whenever m, n ≥ N.", C: "It has a subsequence converging to its supremum.", D: "It is bounded above." }, c: "B", e: "Direct from the Cauchy criterion — tails crowd within every ε." },
-        { q: "Which space is NOT complete?", o: { A: "ℝ", B: "ℝⁿ", C: "ℚ", D: "ℓ²" }, c: "C", e: "ℚ is not complete: the sequence 1, 1.4, 1.41, … converges to √2 ∉ ℚ." },
-        { q: "A contractive sequence satisfies |aₙ₊₁ − aₙ| ≤ k|aₙ − aₙ₋₁| with…", o: { A: "k < 1", B: "k = 1", C: "k > 1", D: "k ≤ 0" }, c: "A", e: "Strict contraction (k < 1) forces geometric decay of differences." },
-      ]);
-      emitAIActivity({ type: "quiz", label: "Quiz generated — 3 questions ready", status: "done" });
-      setLoading(false);
-    }, 1600);
+
+    setLoading(true);
+
+    try {
+      const res = await fetch(`${API}/quiz`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          documents: selected,
+          difficulty: diff,
+          mode,
+          pyq,
+        }),
+      });
+
+      const data = await res.json();
+
+      setQuiz(data.questions);
+    } catch (err) {
+      console.error(err);
+    }
+
+    setLoading(false);
   };
 
   return (

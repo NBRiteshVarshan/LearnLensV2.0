@@ -1,12 +1,6 @@
-
 # =========================================================
 # LearnLens API - Qdrant Version (Fixed)
 # =========================================================
-
-import sys
-if sys.platform == "win32":
-    sys.stdout.reconfigure(encoding="utf-8")
-    sys.stderr.reconfigure(encoding="utf-8")
 
 import os
 import re
@@ -15,13 +9,8 @@ import json
 import random
 from typing import List, Optional
 
-import pathlib
-from contextlib import asynccontextmanager
-
-from fastapi import APIRouter, FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
-from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 import fitz  # PyMuPDF
@@ -47,62 +36,14 @@ from dotenv import load_dotenv
 load_dotenv()
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-
-QDRANT_URL = os.getenv("QDRANT_URL")
-QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
-
 if not GROQ_API_KEY:
-    raise ValueError("GROQ_API_KEY not found")
-
-if not QDRANT_URL:
-    raise ValueError("QDRANT_URL not found")
-
-if not QDRANT_API_KEY:
-    raise ValueError("QDRANT_API_KEY not found")
-
-# =========================================================
-# GROQ CLIENT
-# =========================================================
-
-groq_client = Groq(api_key=GROQ_API_KEY)
-LLM_MODEL = "llama-3.3-70b-versatile"
-
-# =========================================================
-# QDRANT DB + EMBEDDING MODEL (lazy — set in lifespan)
-# =========================================================
-
-COLLECTION_NAME = "learnlens_chunks"
-qdrant: QdrantClient = None
-embedding_model: SentenceTransformer = None
-
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    global qdrant, embedding_model
-
-    # Remove stale lock left by a previously crashed process
-    qdrant = QdrantClient(
-    url=QDRANT_URL,
-    api_key=QDRANT_API_KEY,
-    )
-    existing = [c.name for c in qdrant.get_collections().collections]
-    if COLLECTION_NAME not in existing:
-        qdrant.create_collection(
-            collection_name=COLLECTION_NAME,
-            vectors_config=VectorParams(size=384, distance=Distance.COSINE),
-        )
-    print("Loading embedding model...")
-    embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
-    print("Embedding model loaded")
-    yield
-    qdrant.close()
-
+    raise ValueError("GROQ_API_KEY not found in environment variables")
 
 # =========================================================
 # FASTAPI APP
 # =========================================================
 
-app = FastAPI(title="LearnLens API", version="3.1", lifespan=lifespan)
+app = FastAPI(title="LearnLens API", version="3.1")
 
 app.add_middleware(
     CORSMiddleware,
@@ -112,9 +53,49 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-router = APIRouter()
+# =========================================================
+# GROQ CLIENT
+# =========================================================
 
-STATIC_DIR = pathlib.Path(__file__).parent.parent / "frontend" / "dist"
+groq_client = Groq(api_key=GROQ_API_KEY)
+LLM_MODEL = "llama-3.3-70b-versatile"
+
+# =========================================================
+# QDRANT DB
+# =========================================================
+
+# Use local storage for development
+qdrant = QdrantClient(path="./qdrant_data")
+
+COLLECTION_NAME = "learnlens_chunks"
+
+def init_qdrant_collection():
+    """Initialize Qdrant collection if it doesn't exist."""
+    try:
+        existing_collections = [c.name for c in qdrant.get_collections().collections]
+        
+        if COLLECTION_NAME not in existing_collections:
+            qdrant.create_collection(
+                collection_name=COLLECTION_NAME,
+                vectors_config=VectorParams(
+                    size=384,  # all-MiniLM-L6-v2 embedding dimension
+                    distance=Distance.COSINE
+                )
+            )
+            print(f"✅ Created Qdrant collection: {COLLECTION_NAME}")
+    except Exception as e:
+        print(f"⚠️ Qdrant init warning: {e}")
+
+# Initialize on startup
+init_qdrant_collection()
+
+# =========================================================
+# EMBEDDING MODEL
+# =========================================================
+
+print("🔄 Loading embedding model...")
+embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
+print("✅ Embedding model loaded")
 
 # =========================================================
 # TEMP PDF STORE (in-memory)
@@ -297,14 +278,14 @@ def get_relevant_context_for_question(question: str, pdf_ids: List[str],
         for pid in pdf_ids:
             if pid not in pdf_store:
                 continue
-            results = qdrant.query_points(
+            results = qdrant.search(
                 collection_name=COLLECTION_NAME,
-                query=query_embedding,
+                query_vector=query_embedding,
                 limit=max_chunks_per_pdf,
-                query_filter=Filter(
+                scroll_filter=Filter(
                     must=[FieldCondition(key="pdf_id", match=MatchValue(value=pid))]
                 )
-            ).points
+            )
             pdf_name = pdf_store[pid]["name"]
             for r in results:
                 if "text" in r.payload:
@@ -328,12 +309,12 @@ def get_relevant_context_for_question(question: str, pdf_ids: List[str],
 # API ROUTES
 # =========================================================
 
-@router.get("/")
+@app.get("/")
 async def root():
     return {"message": "LearnLens API Running with Qdrant", "version": "3.1"}
 
 
-@router.get("/health")
+@app.get("/health")
 async def health_check():
     """Health check endpoint for debugging."""
     try:
@@ -349,7 +330,7 @@ async def health_check():
         return {"status": "unhealthy", "error": str(e)}
 
 
-@router.post("/upload")
+@app.post("/upload")
 async def upload(file: UploadFile = File(...)):
     """Upload a PDF file and store metadata."""
     try:
@@ -370,7 +351,7 @@ async def upload(file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
 
 
-@router.post("/ingest")
+@app.post("/ingest")
 async def ingest(data: dict):
     """Extract, chunk, embed, and index PDF content in Qdrant."""
     pdf_id = data.get("pdf_id")
@@ -436,7 +417,7 @@ async def ingest(data: dict):
         raise HTTPException(status_code=500, detail=f"Ingestion failed: {str(e)}")
 
 
-@router.post("/ask")
+@app.post("/ask")
 async def ask(req: AskRequest):
     """Answer questions using RAG from selected PDFs."""
     question = req.question.strip()
@@ -456,17 +437,17 @@ async def ask(req: AskRequest):
         else:
             # Global search fallback
             query_embedding = embedding_model.encode(question).tolist()
-            results = qdrant.query_points(
+            results = qdrant.search(
                 collection_name=COLLECTION_NAME,
-                query=query_embedding,
+                query_vector=query_embedding,
                 limit=6
-            ).points
+            )
             if not results:
                 return {"answer": "Answer not found in uploaded notes.", "sources_used": []}
             context = "\n".join([r.payload["text"] for r in results[:4] if "text" in r.payload])
             source_names = list(set(
-                pdf_store[r.payload["pdf_id"]]["name"]
-                for r in results
+                pdf_store[r.payload["pdf_id"]]["name"] 
+                for r in results 
                 if r.payload.get("pdf_id") in pdf_store
             ))
         
@@ -497,7 +478,7 @@ ANSWER:"""
         raise HTTPException(status_code=500, detail=f"Question answering failed: {str(e)}")
 
 
-@router.post("/summary")
+@app.post("/summary")
 async def summary(req: SummaryRequest):
     """Generate structured summary from selected PDFs."""
     pdf_ids = req.get_valid_ids()
@@ -538,7 +519,7 @@ SOURCES:
         raise HTTPException(status_code=500, detail=f"Summary generation failed: {str(e)}")
 
 
-@router.post("/extract-text")
+@app.post("/extract-text")
 async def extract_text(file: UploadFile = File(...)):
     """Extract raw text from a PDF (for PYQ processing)."""
     try:
@@ -561,7 +542,7 @@ async def extract_text(file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail=f"Text extraction failed: {str(e)}")
 
 
-@router.post("/quiz")
+@app.post("/quiz")
 async def quiz(req: QuizRequest):
     """Generate MCQ quiz from selected PDFs."""
     pdf_ids = req.get_valid_ids()
@@ -616,7 +597,7 @@ CONTENT:
         raise HTTPException(status_code=500, detail=f"Quiz generation failed: {str(e)}")
 
 
-@router.get("/pdfs")
+@app.get("/pdfs")
 async def list_pdfs():
     """List all indexed PDFs."""
     return {
@@ -627,7 +608,7 @@ async def list_pdfs():
     }
 
 
-@router.delete("/pdf/{pdf_id}")
+@app.delete("/pdf/{pdf_id}")
 async def delete_pdf(pdf_id: str):
     """Delete a PDF and its indexed content."""
     if pdf_id not in pdf_store:
@@ -657,25 +638,3 @@ async def delete_pdf(pdf_id: str):
     except Exception as e:
         print(f"❌ Delete error: {e}")
         raise HTTPException(status_code=500, detail=f"Deletion failed: {str(e)}")
-
-
-# =========================================================
-# MOUNT ROUTER + SERVE FRONTEND
-# =========================================================
-
-app.include_router(router, prefix="/api")
-
-if STATIC_DIR.exists():
-    app.mount("/assets", StaticFiles(directory=str(STATIC_DIR / "assets")), name="assets")
-
-
-@app.get("/{full_path:path}")
-async def serve_spa(full_path: str):
-    """Serve the built React app for all non-API routes."""
-    index = STATIC_DIR / "index.html"
-    if not index.exists():
-        return {"message": "Frontend not built. Run: cd frontend && npm run build"}
-    candidate = STATIC_DIR / full_path
-    if candidate.exists() and candidate.is_file():
-        return FileResponse(str(candidate))
-    return FileResponse(str(index))
