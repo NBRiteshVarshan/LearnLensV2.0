@@ -321,6 +321,24 @@ workspace. Each subject type has a distinct view flavour:
 
 ## Recent significant changes (append here as work progresses)
 
+### Session — 2026-06-15
+- **Connected real backend to AI Tools (AITools.jsx + backend/main.py):**
+  - Backend switched from cloud Qdrant (QDRANT_URL/QDRANT_API_KEY) back to local file Qdrant (`backend/qdrant_data/`) — zero config, works out of the box
+  - Backend now persists `pdf_store` to `backend/pdf_store.json` so uploaded PDFs survive server restarts
+  - `UPLOADS_DIR` and `QDRANT_DATA_DIR` now use absolute paths relative to `__file__` (no cwd dependency)
+  - `pdf_store[pdf_id]["chunks"]` is saved after ingest so the `/pdfs` endpoint returns chunk counts
+  - Fixed 5 critical API mismatches in `AITools.jsx`:
+    1. **Upload**: now sends `{ pdf_id }` (from upload response) to `/api/ingest` instead of `{ filename }`; uses real `pdf_id` not `Date.now()`
+    2. **Ask**: sends `pdf_ids` not `documents`; reads `sources_used` not `sources`; shows source name chips instead of broken citation cards
+    3. **Summary**: sends `pdf_ids` not `documents`; displays `data.summary` as plain text (`whiteSpace: pre-wrap`) instead of broken `data.bullets[]`
+    4. **Quiz**: sends `pdf_ids`, `pyq_text`; reads `data.quiz` not `data.questions`; parses options array `["A. text"]` → `{A: "text"}` in frontend
+    5. **All panels**: `const API = ""` (relative paths) instead of hardcoded `http://127.0.0.1:8000`; works via Vite proxy in dev, directly in prod
+  - Added `GET /api/pdfs` load on mount — sidebar shows previously indexed PDFs after page refresh
+  - Added delete `×` button on each PDF row — calls `DELETE /api/pdf/{id}`, removes from Qdrant + sidebar
+  - Removed demo PDF fake data from `AITools` state init — always shows real backend data
+  - Quiz answers lock after first pick (no re-answering)
+  - `emitAIActivity` wired into real upload/ask/summary/quiz flows
+
 ### Session — 2026-05-22
 - Fixed Qdrant `search()` → `query_points()` (API removed in v1.10+)
 - Fixed Qdrant double-lock crash by moving init into FastAPI `lifespan` handler

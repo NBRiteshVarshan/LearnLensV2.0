@@ -1,19 +1,41 @@
-const API = "http://127.0.0.1:8000";
+const API = "";
 
 import React, { useState, useRef, useEffect } from "react";
-import { useAppData } from "./data.js";
 import { Card, Pill, Btn, Ic } from "./Shell.jsx";
 import { emitAIActivity, useAnalytics } from "./useStudyAnalytics.jsx";
 
 function AITools() {
-  const d = useAppData();
   const [tab, setTab] = useState("ask");
-  const [pdfs, setPdfs] = useState(d.demo ? [
-    { id: "p1", name: "Spivak_Calculus_Ch7.pdf", chunks: 84, t: "2h ago" },
-    { id: "p2", name: "CLRS_Ch13_RBtrees.pdf",   chunks: 62, t: "Yesterday" },
-    { id: "p3", name: "Alberts_Ch12.pdf",         chunks: 118, t: "Mon" },
-  ] : []);
-  const [selected, setSelected] = useState(d.demo ? ["p1", "p2"] : []);
+  const [pdfs, setPdfs] = useState([]);
+  const [selected, setSelected] = useState([]);
+
+  useEffect(() => {
+    fetch(`${API}/api/pdfs`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.pdfs && data.pdfs.length > 0) {
+          const loaded = data.pdfs.map(p => ({
+            id: p.id,
+            name: p.name,
+            chunks: p.chunks || 0,
+            t: "indexed",
+          }));
+          setPdfs(loaded);
+          setSelected(loaded.map(p => p.id));
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const deletePdf = async (pdfId) => {
+    try {
+      await fetch(`${API}/api/pdf/${pdfId}`, { method: "DELETE" });
+      setPdfs(ps => ps.filter(p => p.id !== pdfId));
+      setSelected(s => s.filter(x => x !== pdfId));
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   const tabs = [
     { id: "upload",  label: "Upload & index", icon: Ic.Upload,  hint: "PDFs → chunks → embeddings" },
@@ -113,8 +135,8 @@ function AITools() {
                       onMouseLeave={e => !sel && (e.currentTarget.style.background = "transparent")}>
                       <input type="checkbox" checked={sel}
                         onChange={() => setSelected(s => sel ? s.filter(x => x !== p.id) : [...s, p.id])}
-                        style={{ accentColor: "var(--accent)" }} />
-                      <span style={{ width: 13, height: 13, color: sel ? "var(--accent)" : "var(--ink-3)" }}><Ic.Pdf /></span>
+                        style={{ accentColor: "var(--accent)", flexShrink: 0 }} />
+                      <span style={{ width: 13, height: 13, color: sel ? "var(--accent)" : "var(--ink-3)", flexShrink: 0 }}><Ic.Pdf /></span>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: 12, fontWeight: sel ? 500 : 400, color: "var(--ink)",
                           overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
@@ -123,6 +145,18 @@ function AITools() {
                           <span className="mono">{p.chunks} chunks · {p.t}</span>
                         </div>
                       </div>
+                      <button
+                        onClick={e => { e.preventDefault(); e.stopPropagation(); deletePdf(p.id); }}
+                        title="Remove document"
+                        style={{
+                          flexShrink: 0, width: 18, height: 18, borderRadius: 4,
+                          display: "grid", placeItems: "center",
+                          color: "var(--ink-4)", background: "transparent",
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.background = "var(--due-soft)"; e.currentTarget.style.color = "var(--due)"; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--ink-4)"; }}>
+                        <span style={{ width: 11, height: 11 }}><Ic.X /></span>
+                      </button>
                     </label>
                   );
                 })}
@@ -145,68 +179,49 @@ function AITools() {
 function UploadPanel({ pdfs, setPdfs, setSelected }) {
   const [dragging, setDragging] = useState(false);
   const [stage, setStage] = useState("idle");
-  const [progress, setProgress] = useState(0);
-  const [name, setName] = useState("");
+  const [fileName, setFileName] = useState("");
+  const [chunkCount, setChunkCount] = useState(0);
   const inputRef = useRef(null);
 
   const handleFile = async (file) => {
-    try {
-      setName(file.name);
-      setStage("uploading");
+    setFileName(file.name);
+    setStage("uploading");
 
+    try {
       const formData = new FormData();
       formData.append("file", file);
 
-      const uploadRes = await fetch(`${API}/upload`, {
-        method: "POST",
-        body: formData,
-      });
-
-      if (!uploadRes.ok)
-        throw new Error("Upload failed");
+      const uploadRes = await fetch(`${API}/api/upload`, { method: "POST", body: formData });
+      if (!uploadRes.ok) throw new Error(`Upload failed: ${uploadRes.statusText}`);
+      const uploadData = await uploadRes.json();
 
       setStage("ingesting");
+      emitAIActivity({ type: "upload", label: `Uploading ${file.name}`, status: "processing" });
 
-      const ingestRes = await fetch(`${API}/ingest`, {
+      const ingestRes = await fetch(`${API}/api/ingest`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          filename: file.name,
-        }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pdf_id: uploadData.pdf_id }),
       });
+      if (!ingestRes.ok) throw new Error(`Ingestion failed: ${ingestRes.statusText}`);
+      const ingestData = await ingestRes.json();
 
-      if (!ingestRes.ok)
-        throw new Error("Ingestion failed");
+      const chunks = ingestData.chunks_added || 0;
+      setChunkCount(chunks);
 
-      const data = await ingestRes.json();
-
-      const newPdf = {
-        id: Date.now().toString(),
-        name: file.name,
-        chunks: data.chunks,
-        t: "just now",
-      };
-
-      setPdfs((prev) => [newPdf, ...prev]);
-      setSelected((prev) => [newPdf.id, ...prev]);
+      const newPdf = { id: uploadData.pdf_id, name: file.name, chunks, t: "just now" };
+      setPdfs(ps => [newPdf, ...ps]);
+      setSelected(s => [uploadData.pdf_id, ...s]);
 
       setStage("done");
+      emitAIActivity({ type: "embed", label: `Indexed ${file.name} — ${chunks} chunks`, status: "done" });
+      setTimeout(() => { setStage("idle"); setFileName(""); setChunkCount(0); }, 2000);
     } catch (err) {
       console.error(err);
       alert(err.message);
       setStage("idle");
+      setFileName("");
     }
-  };
-  const finish = () => {
-    const chunks = Math.floor(40 + Math.random() * 80);
-    const newPdf = { id: "p" + Date.now(), name, chunks, t: "just now" };
-    setPdfs(ps => [newPdf, ...ps]);
-    setSelected(s => [newPdf.id, ...s]);
-    setStage("done");
-    emitAIActivity({ type: "embed", label: `Indexed ${name} — ${chunks} chunks`, status: "done" });
-    setTimeout(() => { setStage("idle"); setName(""); setProgress(0); }, 1600);
   };
 
   return (
@@ -220,10 +235,11 @@ function UploadPanel({ pdfs, setPdfs, setSelected }) {
           onDragOver={e => { e.preventDefault(); setDragging(true); }}
           onDragLeave={() => setDragging(false)}
           onDrop={e => { e.preventDefault(); setDragging(false); const f = e.dataTransfer.files?.[0]; if (f) handleFile(f); }}
-          onClick={() => inputRef.current?.click()}
+          onClick={() => stage === "idle" && inputRef.current?.click()}
           style={{
             padding: 36, border: `2px dashed ${dragging ? "var(--accent)" : "var(--line-strong)"}`,
-            borderRadius: 14, textAlign: "center", cursor: "pointer",
+            borderRadius: 14, textAlign: "center",
+            cursor: stage === "idle" ? "pointer" : "default",
             background: dragging ? "var(--accent-soft)" : "var(--surface-2)",
             transition: "all 160ms",
           }}>
@@ -238,7 +254,7 @@ function UploadPanel({ pdfs, setPdfs, setSelected }) {
             Drop a PDF here, or click to browse
           </div>
           <div style={{ fontSize: 12, color: "var(--ink-3)" }}>
-            We split into 220-word chunks, embed with all-MiniLM-L6-v2, and store in ChromaDB.
+            Split into 220-word chunks, embedded with all-MiniLM-L6-v2, stored in Qdrant.
           </div>
         </div>
 
@@ -247,18 +263,22 @@ function UploadPanel({ pdfs, setPdfs, setSelected }) {
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <span style={{ width: 16, height: 16, color: "var(--accent)" }}><Ic.Pdf /></span>
-                <span className="mono" style={{ fontSize: 12 }}>{name}</span>
+                <span className="mono" style={{ fontSize: 12 }}>{fileName}</span>
               </div>
               <span className="mono" style={{ fontSize: 11, color: "var(--ink-3)" }}>
-                {stage === "uploading" ? `uploading · ${progress}%` : stage === "ingesting" ? "embedding · 84 chunks" : "✓ indexed"}
+                {stage === "uploading" && "uploading…"}
+                {stage === "ingesting" && "embedding…"}
+                {stage === "done"      && `✓ ${chunkCount} chunks indexed`}
               </span>
             </div>
             <div style={{ height: 4, background: "var(--line-soft)", borderRadius: 2, overflow: "hidden" }}>
               <div style={{
                 height: "100%",
-                width: stage === "done" ? "100%" : stage === "ingesting" ? "100%" : `${progress}%`,
+                width: stage === "done" ? "100%" : "60%",
                 background: stage === "done" ? "var(--ok)" : "var(--accent)",
-                transition: "width 120ms",
+                transition: "width 400ms ease",
+                animation: stage !== "done" ? "ll-shimmer 1.4s linear infinite" : "none",
+                backgroundSize: "200% 100%",
               }} />
             </div>
           </div>
@@ -267,7 +287,7 @@ function UploadPanel({ pdfs, setPdfs, setSelected }) {
 
       <div style={{ padding: "12px 20px", borderTop: "1px solid var(--line)", background: "var(--surface-2)",
         fontSize: 11, color: "var(--ink-3)" }} className="mono">
-        endpoint: POST /upload → POST /ingest · stored in chroma_db/learnlens_chunks
+        POST /api/upload → POST /api/ingest · stored in qdrant_data/
       </div>
     </Card>
   );
@@ -282,47 +302,31 @@ function AskPanel({ pdfs, selected }) {
   useEffect(() => { endRef.current?.scrollTo({ top: endRef.current.scrollHeight, behavior: "smooth" }); }, [history, loading]);
 
   const send = async () => {
-    if (!q.trim()) return;
-
-    const question = q;
-
-    setHistory((h) => [
-      ...h,
-      {
-        role: "user",
-        text: question,
-      },
-    ]);
-
+    if (!q.trim() || loading) return;
+    const question = q.trim();
+    setHistory(h => [...h, { role: "user", text: question }]);
     setQ("");
     setLoading(true);
+    emitAIActivity({ type: "ask", label: question.slice(0, 60), status: "processing" });
 
     try {
-      const res = await fetch(`${API}/ask`, {
+      const res = await fetch(`${API}/api/ask`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          question,
-          documents: selected,
-        }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question, pdf_ids: selected }),
       });
-
+      if (!res.ok) throw new Error(`Request failed: ${res.statusText}`);
       const data = await res.json();
-
-      setHistory((h) => [
-        ...h,
-        {
-          role: "assistant",
-          text: data.answer,
-          cites: data.sources || [],
-        },
-      ]);
+      setHistory(h => [...h, {
+        role: "assistant",
+        text: data.answer,
+        sources: data.sources_used || [],
+      }]);
+      emitAIActivity({ type: "ask", label: question.slice(0, 60), status: "done" });
     } catch (err) {
       console.error(err);
+      setHistory(h => [...h, { role: "assistant", text: "Something went wrong. Check the backend is running.", sources: [] }]);
     }
-
     setLoading(false);
   };
 
@@ -336,7 +340,7 @@ function AskPanel({ pdfs, selected }) {
           <div style={{ fontSize: "var(--fs-18)", fontWeight: 500 }}>Grounded over {selected.length || 0} doc{selected.length === 1 ? "" : "s"}</div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11.5, color: "var(--ink-3)" }} className="mono">
-          POST /ask
+          POST /api/ask
         </div>
       </div>
 
@@ -346,9 +350,9 @@ function AskPanel({ pdfs, selected }) {
             <div style={{ fontSize: 13, marginBottom: 12 }}>Ask something. The model only answers from your selected notes.</div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6, justifyContent: "center" }}>
               {[
-                "Why does the uncle-red case in RB-tree fixup recurse upward?",
-                "Define a Cauchy sequence in your own words.",
-                "Summarise membrane transport in 3 sentences.",
+                "Summarise the key concepts in this document.",
+                "What are the most important definitions?",
+                "Explain the main topic in simple terms.",
               ].map(s => (
                 <button key={s} onClick={() => setQ(s)} style={{
                   fontSize: 11.5, padding: "5px 10px", borderRadius: 100,
@@ -377,26 +381,29 @@ function AskPanel({ pdfs, selected }) {
                     background: "var(--accent-soft)", color: "var(--accent)",
                     display: "grid", placeItems: "center",
                   }}><span style={{ width: 12, height: 12 }}><Ic.Bot /></span></span>
-                  <span style={{ fontSize: 11, color: "var(--ink-3)" }}>LearnLens · 6 chunks retrieved</span>
+                  <span style={{ fontSize: 11, color: "var(--ink-3)" }}>LearnLens · {selected.length} doc{selected.length === 1 ? "" : "s"} searched</span>
                 </div>
                 <div className="serif" style={{
                   fontFamily: "var(--font-serif)", fontSize: 15, lineHeight: 1.65,
                   color: "var(--ink)", textWrap: "pretty", marginBottom: 10, marginLeft: 30,
+                  whiteSpace: "pre-wrap",
                 }}>{m.text}</div>
-                <div style={{ marginLeft: 30, display: "flex", flexDirection: "column", gap: 6 }}>
-                  {m.cites.map((c, j) => (
-                    <div key={j} style={{
-                      padding: "8px 12px", background: "var(--surface-2)",
-                      border: "1px solid var(--line-soft)", borderRadius: 6,
-                      borderLeft: "2px solid var(--accent)",
-                    }}>
-                      <div className="mono" style={{ fontSize: 10.5, color: "var(--accent)", fontWeight: 500, marginBottom: 2 }}>
-                        {c.p} · p. {c.page}
-                      </div>
-                      <div style={{ fontSize: 12, color: "var(--ink-2)", fontStyle: "italic" }}>"{c.snippet}"</div>
-                    </div>
-                  ))}
-                </div>
+                {m.sources && m.sources.length > 0 && (
+                  <div style={{ marginLeft: 30, display: "flex", flexWrap: "wrap", gap: 6 }}>
+                    {m.sources.map((src, j) => (
+                      <span key={j} style={{
+                        display: "inline-flex", alignItems: "center", gap: 4,
+                        padding: "3px 8px", borderRadius: 100,
+                        background: "var(--accent-soft)", color: "var(--accent)",
+                        border: "1px solid var(--accent-line)",
+                        fontSize: 11, fontWeight: 500,
+                      }}>
+                        <span style={{ width: 10, height: 10 }}><Ic.Pdf /></span>
+                        {src}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -444,34 +451,29 @@ function AskPanel({ pdfs, selected }) {
 }
 
 function SummaryPanel({ pdfs, selected }) {
-  const [length, setLength] = useState("medium");
   const [generated, setGen] = useState(null);
   const [loading, setLoading] = useState(false);
 
   const run = async () => {
     if (selected.length === 0) return;
-
     setLoading(true);
+    setGen(null);
+    emitAIActivity({ type: "summary", label: `Summarising ${selected.length} doc${selected.length === 1 ? "" : "s"}`, status: "processing" });
 
     try {
-      const res = await fetch(`${API}/summary`, {
+      const res = await fetch(`${API}/api/summary`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          documents: selected,
-          length,
-        }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pdf_ids: selected }),
       });
-
+      if (!res.ok) throw new Error(`Request failed: ${res.statusText}`);
       const data = await res.json();
-
-      setGen(data);
+      setGen({ text: data.summary, sources: data.sources_used || [] });
+      emitAIActivity({ type: "summary", label: `Summary ready`, status: "done" });
     } catch (err) {
       console.error(err);
+      alert("Summary generation failed. Check the backend is running.");
     }
-
     setLoading(false);
   };
 
@@ -484,25 +486,15 @@ function SummaryPanel({ pdfs, selected }) {
           <div className="label-xs">Summarise</div>
           <div style={{ fontSize: "var(--fs-18)", fontWeight: 500 }}>Synthesise across {selected.length} doc{selected.length === 1 ? "" : "s"}</div>
         </div>
-        <div className="mono" style={{ fontSize: 11.5, color: "var(--ink-3)" }}>POST /summary</div>
+        <div className="mono" style={{ fontSize: 11.5, color: "var(--ink-3)" }}>POST /api/summary</div>
       </div>
 
       <div style={{ padding: "16px 20px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 14 }}>
-          <span className="label-xs">Length</span>
-          <div style={{ display: "flex", gap: 1, padding: 2, borderRadius: 6, background: "var(--surface-2)", border: "1px solid var(--line)" }}>
-            {[["short", "TL;DR"], ["medium", "Standard"], ["long", "Deep"]].map(([v, l]) => (
-              <button key={v} onClick={() => setLength(v)} style={{
-                padding: "5px 12px", borderRadius: 4,
-                background: length === v ? "var(--surface)" : "transparent",
-                color: length === v ? "var(--ink)" : "var(--ink-3)",
-                fontSize: 12, fontWeight: length === v ? 500 : 400,
-                boxShadow: length === v ? "var(--shadow-sm)" : "none",
-              }}>{l}</button>
-            ))}
-          </div>
           <div style={{ flex: 1 }} />
-          <Btn variant="primary" icon={Ic.Sparkle} onClick={run}>{loading ? "Working…" : "Generate"}</Btn>
+          <Btn variant="primary" icon={Ic.Sparkle} onClick={run} disabled={selected.length === 0}>
+            {loading ? "Working…" : "Generate"}
+          </Btn>
         </div>
 
         {!generated && !loading && (
@@ -532,24 +524,29 @@ function SummaryPanel({ pdfs, selected }) {
 
         {generated && (
           <div style={{ padding: "18px 22px", border: "1px solid var(--line)", borderRadius: 10, background: "var(--surface)" }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-              <div className="label-xs">Summary · {generated.words} words · {generated.sourcesUsed} source{generated.sourcesUsed === 1 ? "" : "s"}</div>
-              <div style={{ display: "flex", gap: 6 }}>
-                <Btn variant="ghost" icon={Ic.Note}>Save to notes</Btn>
-                <Btn variant="ghost">Copy</Btn>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                {generated.sources.map((src, i) => (
+                  <span key={i} style={{
+                    display: "inline-flex", alignItems: "center", gap: 4,
+                    padding: "3px 8px", borderRadius: 100,
+                    background: "var(--accent-soft)", color: "var(--accent)",
+                    border: "1px solid var(--accent-line)",
+                    fontSize: 11, fontWeight: 500,
+                  }}>
+                    <span style={{ width: 10, height: 10 }}><Ic.Pdf /></span>
+                    {src}
+                  </span>
+                ))}
               </div>
+              <Btn variant="ghost">Copy</Btn>
             </div>
-            <ul style={{ paddingLeft: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 12 }} className="serif">
-              {generated.bullets.map((b, i) => (
-                <li key={i} style={{
-                  fontFamily: "var(--font-serif)", fontSize: 15, lineHeight: 1.6,
-                  color: "var(--ink)", paddingLeft: 18, position: "relative", textWrap: "pretty",
-                }}>
-                  <span style={{ position: "absolute", left: 0, top: 9, width: 6, height: 6, borderRadius: 1, background: "var(--accent)" }} />
-                  {b}
-                </li>
-              ))}
-            </ul>
+            <div className="serif" style={{
+              fontFamily: "var(--font-serif)", fontSize: 15, lineHeight: 1.7,
+              color: "var(--ink)", whiteSpace: "pre-wrap", textWrap: "pretty",
+            }}>
+              {generated.text}
+            </div>
           </div>
         )}
       </div>
@@ -567,13 +564,12 @@ function QuizPanel({ pdfs, selected }) {
   const [loading, setLoading] = useState(false);
   const scoreRecorded = useRef(false);
 
-  // Detect quiz completion and record recall score
   useEffect(() => {
     if (!quiz || scoreRecorded.current) return;
     const allAnswered = quiz.every((_, i) => picked[i] !== undefined);
     if (!allAnswered) return;
     scoreRecorded.current = true;
-    const correct = quiz.filter((q, i) => picked[i] === q.c).length;
+    const correct = quiz.filter((q, i) => picked[i] === q.answer).length;
     analytics?.recordQuizResult({ score: correct, total: quiz.length });
     emitAIActivity({
       type: "quiz",
@@ -582,35 +578,44 @@ function QuizPanel({ pdfs, selected }) {
     });
   }, [JSON.stringify(Object.values(picked)), quiz]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Reset recorded flag when a new quiz is generated
   useEffect(() => { scoreRecorded.current = false; }, [quiz]);
 
   const generate = async () => {
     if (selected.length === 0) return;
-
     setLoading(true);
+    setQuiz(null);
+    setPicked({});
+    emitAIActivity({ type: "quiz", label: `Generating ${diff} quiz`, status: "processing" });
 
     try {
-      const res = await fetch(`${API}/quiz`, {
+      const res = await fetch(`${API}/api/quiz`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          documents: selected,
-          difficulty: diff,
-          mode,
-          pyq,
-        }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pdf_ids: selected, difficulty: diff, mode, pyq_text: pyq }),
       });
-
+      if (!res.ok) throw new Error(`Request failed: ${res.statusText}`);
       const data = await res.json();
 
-      setQuiz(data.questions);
+      if (!data.quiz || data.quiz.length === 0) {
+        alert(data.error || "Quiz generation failed. Try again.");
+        setLoading(false);
+        return;
+      }
+
+      const parsed = data.quiz.map(q => {
+        const opts = {};
+        (q.options || []).forEach(o => {
+          const dot = o.indexOf(". ");
+          if (dot !== -1) opts[o.slice(0, dot)] = o.slice(dot + 2);
+        });
+        return { question: q.question, opts, answer: q.answer, explanation: q.explanation };
+      });
+
+      setQuiz(parsed);
     } catch (err) {
       console.error(err);
+      alert("Quiz generation failed. Check the backend is running.");
     }
-
     setLoading(false);
   };
 
@@ -623,7 +628,7 @@ function QuizPanel({ pdfs, selected }) {
           <div className="label-xs">Quiz · 10 MCQ</div>
           <div style={{ fontSize: "var(--fs-18)", fontWeight: 500 }}>Validated retry loop · 3 attempts</div>
         </div>
-        <div className="mono" style={{ fontSize: 11.5, color: "var(--ink-3)" }}>POST /quiz</div>
+        <div className="mono" style={{ fontSize: 11.5, color: "var(--ink-3)" }}>POST /api/quiz</div>
       </div>
 
       <div style={{ padding: "16px 20px" }}>
@@ -651,7 +656,9 @@ function QuizPanel({ pdfs, selected }) {
             </select>
           </Control>
           <Control label="Action">
-            <Btn variant="primary" icon={Ic.Sparkle} onClick={generate} style={{ width: "100%", justifyContent: "center" }}>
+            <Btn variant="primary" icon={Ic.Sparkle} onClick={generate}
+              style={{ width: "100%", justifyContent: "center" }}
+              disabled={selected.length === 0}>
               {loading ? "Generating…" : "Generate quiz"}
             </Btn>
           </Control>
@@ -686,7 +693,7 @@ function QuizPanel({ pdfs, selected }) {
 
         {loading && (
           <div style={{ padding: 16, border: "1px solid var(--line)", borderRadius: 10, fontSize: 12, color: "var(--ink-3)" }}>
-            <div className="mono">attempt 1/3 · validating JSON shape…</div>
+            <div className="mono">generating quiz · validating JSON shape…</div>
           </div>
         )}
 
@@ -699,19 +706,20 @@ function QuizPanel({ pdfs, selected }) {
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
                     <div className="mono" style={{ fontSize: 11, color: "var(--accent)" }}>Q{i + 1} · {diff}</div>
                   </div>
-                  <div style={{ fontSize: "var(--fs-15)", marginBottom: 12, lineHeight: 1.5 }} className="serif">{qq.q}</div>
+                  <div style={{ fontSize: "var(--fs-15)", marginBottom: 12, lineHeight: 1.5 }} className="serif">{qq.question}</div>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-                    {Object.entries(qq.o).map(([k, v]) => {
+                    {Object.entries(qq.opts).map(([k, v]) => {
                       const isPicked = pickedAns === k;
-                      const correct = pickedAns && k === qq.c;
-                      const wrong = pickedAns === k && k !== qq.c;
+                      const correct = pickedAns && k === qq.answer;
+                      const wrong = pickedAns === k && k !== qq.answer;
                       return (
-                        <button key={k} onClick={() => setPicked(p => ({ ...p, [i]: k }))} style={{
+                        <button key={k} onClick={() => !pickedAns && setPicked(p => ({ ...p, [i]: k }))} style={{
                           textAlign: "left", padding: "8px 12px", borderRadius: 6,
                           border: `1px solid ${correct ? "var(--ok)" : wrong ? "var(--due)" : isPicked ? "var(--accent)" : "var(--line)"}`,
                           background: correct ? "var(--ok-soft)" : wrong ? "var(--due-soft)" : isPicked ? "var(--accent-soft)" : "var(--surface)",
                           fontSize: 12.5, lineHeight: 1.4,
                           display: "flex", gap: 8, alignItems: "flex-start",
+                          cursor: pickedAns ? "default" : "pointer",
                         }}>
                           <span className="mono" style={{ fontSize: 11, color: "var(--ink-3)", marginTop: 1 }}>{k}</span>
                           <span style={{ color: "var(--ink)" }}>{v}</span>
@@ -722,13 +730,13 @@ function QuizPanel({ pdfs, selected }) {
                   {pickedAns && (
                     <div style={{
                       marginTop: 10, padding: "8px 12px", borderRadius: 6,
-                      background: pickedAns === qq.c ? "var(--ok-soft)" : "var(--due-soft)",
-                      borderLeft: `2px solid ${pickedAns === qq.c ? "var(--ok)" : "var(--due)"}`,
+                      background: pickedAns === qq.answer ? "var(--ok-soft)" : "var(--due-soft)",
+                      borderLeft: `2px solid ${pickedAns === qq.answer ? "var(--ok)" : "var(--due)"}`,
                       fontSize: 12, color: "var(--ink-2)",
                     }}>
-                      <span style={{ fontWeight: 600, color: pickedAns === qq.c ? "var(--ok)" : "var(--due)" }}>
-                        {pickedAns === qq.c ? "✓ Correct" : "✗ Incorrect"}
-                      </span>{" — "}{qq.e}
+                      <span style={{ fontWeight: 600, color: pickedAns === qq.answer ? "var(--ok)" : "var(--due)" }}>
+                        {pickedAns === qq.answer ? "✓ Correct" : "✗ Incorrect"}
+                      </span>{" — "}{qq.explanation}
                     </div>
                   )}
                 </Card>
