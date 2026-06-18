@@ -198,8 +198,7 @@ function Sidebar({ route, setRoute, subjects, workflow, setWorkflow, user, onAdd
       )}
 
       <nav style={{ padding: showLabels ? "8px 10px" : "8px 4px", display: "flex", flexDirection: "column", gap: 1 }}>
-        <NavItem id="dashboard" icon={Ic.Home}  label="Today" />   
-        <NavItem id="library"   icon={Ic.Books} label="Library" />
+        <NavItem id="dashboard" icon={Ic.Home}  label="Today" />
         <NavItem id="calendar"  icon={Ic.Cal}   label="Calendar" />
         <NavItem id="analytics" icon={Ic.Chart} label="Analytics" />
       </nav>
@@ -511,7 +510,6 @@ function CommandBar({ open, onClose, subjects, setRoute }) {
     const base = [
       ...subjects.map(s => ({ kind: "Subject", label: s.name, hint: s.title, action: () => setRoute({ view: "subject", id: s.id }) })),
       { kind: "View",   label: "Today",               hint: "Dashboard",             action: () => setRoute({ view: "dashboard" }) },
-      { kind: "View",   label: "Library",              hint: "All resources",         action: () => setRoute({ view: "library" }) },
       { kind: "View",   label: "Calendar",             hint: "Week & term",           action: () => setRoute({ view: "calendar" }) },
       { kind: "Action", label: "Start 25-min focus",   hint: "Pomodoro · current subject" },
       { kind: "Action", label: "New annotation",       hint: "Highlight selected passage" },

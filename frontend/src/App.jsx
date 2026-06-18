@@ -4,7 +4,7 @@ import { useAppData } from "./learnlens/data.js";
 import { Sidebar, TopBar, CommandBar, Ic, SUBJECT_ICONS, CUSTOM_COLORS, getCustomColorVars, WORKFLOWS } from "./learnlens/Shell.jsx";
 import { Dashboard } from "./learnlens/Dashboard.jsx";
 import { SubjectRouter } from "./learnlens/Workspaces.jsx";
-import { Library, Calendar_View, Analytics } from "./learnlens/Views.jsx";
+import { Calendar_View, Analytics } from "./learnlens/Views.jsx";
 import { AITools } from "./learnlens/AITools.jsx";
 import { TimerProvider, TimerPill, TimerPanel } from "./learnlens/StudyTimer.jsx";
 import { AnalyticsProvider } from "./learnlens/useStudyAnalytics.jsx";
@@ -114,7 +114,6 @@ export default function App() {
 
   const crumbs = (() => {
     if (route.view === "dashboard") return [{ label: "Today",     icon: Ic.Home }];
-    if (route.view === "library")   return [{ label: "Library",   icon: Ic.Books }];
     if (route.view === "calendar")  return [{ label: "Calendar",  icon: Ic.Cal }];
     if (route.view === "analytics") return [{ label: "Analytics", icon: Ic.Chart }];
     if (route.view === "subject") {
@@ -211,7 +210,6 @@ const deleteSubject = (id) => {
       </div>
     </div>
   );
-  else if (route.view === "library")   body = <Library />;
   else if (route.view === "calendar")  body = <Calendar_View />;
   else if (route.view === "analytics") body = <Analytics />;
 
@@ -288,8 +286,7 @@ const deleteSubject = (id) => {
         </TweakSection>
         <TweakSection label="Jump to">
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, padding: "4px 0" }}>
-            <button onClick={() => setRoute({ view: "dashboard" })} style={jumpBtn}>Today</button> 
-            <button onClick={() => setRoute({ view: "library" })}   style={jumpBtn}>Library</button>
+            <button onClick={() => setRoute({ view: "dashboard" })} style={jumpBtn}>Today</button>
             <button onClick={() => setRoute({ view: "calendar" })}  style={jumpBtn}>Calendar</button>
             <button onClick={() => setRoute({ view: "analytics" })} style={jumpBtn}>Analytics</button>
           </div>

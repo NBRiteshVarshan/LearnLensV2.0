@@ -392,3 +392,30 @@ workspace. Each subject type has a distinct view flavour:
   - `ProfileWidget`: shows compact 36px avatar ring when collapsed; full widget with expanded popup when expanded
   - Profile popup changed from `position: absolute` to `position: fixed` (using `getBoundingClientRect` ref) so it escapes `overflow: hidden` on the aside
   - State persisted to `localStorage` key `ll-sidebar-collapsed`
+
+### Session — 2026-06-18 (2)
+- **Calendar: multi-hour spanning confirmed + conflict detection + deletion + persistence (`Views.jsx`):**
+  - Root cause: rendering was already correct (`height: ev.l * 44 - 4`); missing features made it feel broken
+  - Added `CAL_STORAGE_KEY = "ll-calendar-events-v1"` + `loadCalEvents()` helper; events now persist across page reloads via localStorage
+  - Added `saveEvents()` wrapper (updates state + writes localStorage); replaced both `setEvents` call sites
+  - Added `conflict` derived value: detects overlap as `ev.h < hour + duration && ev.h + ev.l > hour` on same day
+  - Added inline ⚠ warning in composer when conflict exists — soft warn, not hard block (intentional overlaps are valid)
+  - Removed `pointerEvents: "none"` from event blocks; added click-to-select with `selected` state (key = `"${d}-${h}-${title}"`)
+  - Selected event gets `outline: 2px solid var(--s)` highlight + `×` delete button (absolute, top-right)
+  - Delete calls `saveEvents(events.filter(...))` then clears `selected`
+  - `stopPropagation` on event block click prevents the cell-click composer from also opening
+  - `height: Math.max(ev.l * 44 - 4, 20)` — enforces 20px minimum for 0.5h events
+  - Duration options extended: `[0.5, 1, 1.5, 2, 2.5, 3, 4]` (adds 4h for long study sessions)
+
+### Session — 2026-06-18
+- **Removed Library feature (surgical UI-only removal):**
+  - `Library()` component deleted from `Views.jsx` — along with `LIB_TYPES_BASE`, `KIND_ICONS` constants and unused `useMemo` import
+  - `Library` removed from `Views.jsx` named export
+  - `<NavItem id="library">` removed from sidebar in `Shell.jsx`
+  - Library entry removed from `CommandBar` commands list in `Shell.jsx`
+  - `Library` import removed from `App.jsx`
+  - Library breadcrumb, route render (`route.view === "library"`), and TweaksPanel jump button all removed from `App.jsx`
+  - `LIB_DEMO` array and `libItems` field removed from both demo + real return objects in `data.js`
+  - **No backend changes** — Library had zero API routes and zero shared services
+  - Navigation is now: Today · Calendar · Analytics
+  - All other features (AI Tools, RAG, Quiz, Summary, Analytics, Calendar, Study Timer) verified unaffected

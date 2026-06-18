@@ -220,18 +220,6 @@ const LIT_ANNOTATIONS = [
   { line: 4, color: "voice",   note: "Free indirect — narrator slips into Clarissa mid-sentence." },
 ];
 
-// ── Library demo data ──────────────────────────────────────────────────────
-const LIB_DEMO = [
-  { kind: "pdf",   subj: "math", title: "Spivak — Calculus, Ch. 7 (annotated)",  meta: "412 p · 38 highlights", t: "2h ago", tag: "Textbook", diff: "II" },
-  { kind: "video", subj: "prog", title: "Lecture 13 — Red-black trees",          meta: "01:24:11 · watched 78%", t: "Yesterday", tag: "Lecture",  diff: "II" },
-  { kind: "note",  subj: "bio",  title: "Membrane transport — lab notes",         meta: "8 pages · last edit 12 min ago", t: "Today", tag: "Notes", diff: "I" },
-  { kind: "code",  subj: "prog", title: "rbtree.rs (lab fork)",                   meta: "247 LOC · 1 failing test", t: "08:42", tag: "Lab",     diff: "III" },
-  { kind: "pdf",   subj: "lit",  title: "Mrs Dalloway — Hogarth 1925 (scan)",     meta: "180 p · 24 annotations", t: "Yesterday", tag: "Primary text", diff: "II" },
-  { kind: "quiz",  subj: "math", title: "Sequences & limits — 25 Q",              meta: "Last attempt 22 / 25", t: "Mon", tag: "Quiz", diff: "II" },
-  { kind: "card",  subj: "bio",  title: "Membrane transport — 28 cards",          meta: "87% recall · 6 weak", t: "Sun",   tag: "Deck", diff: "I" },
-  { kind: "note",  subj: "phys", title: "Lagrangian derivations — set 4",         meta: "5 pages · scratch", t: "Sat", tag: "Working", diff: "III" },
-];
-
 // ── Calendar demo events ───────────────────────────────────────────────────
 const CAL_DEMO = [
   { d: 0, h: 14, l: 1.5, subj: "prog", kind: "Lecture",   title: "Algorithms 13 — RB-trees" },
@@ -274,7 +262,6 @@ function useAppData() {
       suggestions: FRIEND_SUGGESTIONS, aiActivity: AI_ACTIVITY,
       calEvents: CAL_DEMO,
       inbox: INBOX_DEMO,
-      libItems: LIB_DEMO,
     };
   }
   return {
@@ -287,7 +274,6 @@ function useAppData() {
     aiActivity: [],
     calEvents: window.__LL_USER_EVENTS || [],
     inbox: window.__LL_USER_INBOX || [],
-    libItems: window.__LL_USER_LIB || [],
   };
 }
 

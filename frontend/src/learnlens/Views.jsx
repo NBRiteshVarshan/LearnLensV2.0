@@ -1,157 +1,6 @@
-import React, { useState, useMemo } from "react";
+import React, { useState } from "react";
 import { useAppData } from "./data.js";
 import { Card, Pill, Btn, SectionTitle, Ic, SUBJECT_ICONS } from "./Shell.jsx";
-
-// ── Library ────────────────────────────────────────────────────────────────
-const LIB_TYPES_BASE = [
-  { id: "all",  label: "All" },
-  { id: "pdf",  label: "PDFs",       icon: Ic.Pdf },
-  { id: "note", label: "Notes",      icon: Ic.Note },
-  { id: "video",label: "Lectures",   icon: Ic.Video },
-  { id: "code", label: "Code",       icon: Ic.Code },
-  { id: "card", label: "Flashcards", icon: Ic.Card },
-  { id: "quiz", label: "Quizzes",    icon: Ic.Quiz },
-];
-
-const KIND_ICONS = { pdf: Ic.Pdf, video: Ic.Video, note: Ic.Note, code: Ic.Code, card: Ic.Card, quiz: Ic.Quiz };
-
-function Library() {
-  const d = useAppData();
-  const [type, setType] = useState("all");
-  const items = type === "all" ? d.libItems : d.libItems.filter(i => i.kind === type);
-
-  const counts = useMemo(() => {
-    const c = { all: d.libItems.length };
-    for (const t of LIB_TYPES_BASE) if (t.id !== "all") c[t.id] = d.libItems.filter(i => i.kind === t.id).length;
-    return c;
-  }, [d.libItems]);
-
-  return (
-    <div style={{ padding: "28px 32px 60px", maxWidth: 1400, margin: "0 auto" }}>
-      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 22 }}>
-        <div>
-          <div className="label-xs" style={{ marginBottom: 6 }}>Resource Library</div>
-          <h1 style={{ fontFamily: "var(--font-serif)", fontWeight: 400, fontSize: "var(--fs-28)", letterSpacing: "-0.02em" }}>
-            {d.libItems.length > 0 ? "Everything you've gathered" : "Your library is empty"}
-          </h1>
-        </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          <Btn icon={Ic.Filter} variant="ghost">Filter</Btn>
-          <Btn icon={Ic.Upload} variant="primary">Upload</Btn>
-        </div>
-      </div>
-
-      <div style={{ display: "grid", gridTemplateColumns: "200px 1fr", gap: 18 }}>
-        <div>
-          <div className="label-xs" style={{ marginBottom: 8 }}>By type</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
-            {LIB_TYPES_BASE.map(t => {
-              const active = type === t.id;
-              const I = t.icon;
-              return (
-                <button key={t.id} onClick={() => setType(t.id)} style={{
-                  display: "flex", alignItems: "center", gap: 8, padding: "6px 10px",
-                  borderRadius: "var(--r-sm)",
-                  background: active ? "var(--surface-2)" : "transparent",
-                  color: active ? "var(--ink)" : "var(--ink-2)",
-                  fontSize: "var(--fs-13)", fontWeight: active ? 500 : 400,
-                }}>
-                  {I ? <span style={{ width: 13, height: 13, color: active ? "var(--accent)" : "var(--ink-3)" }}><I /></span>
-                     : <span style={{ width: 13 }} />}
-                  <span style={{ flex: 1, textAlign: "left" }}>{t.label}</span>
-                  <span className="mono tabular" style={{ fontSize: 10.5, color: "var(--ink-3)" }}>{counts[t.id]}</span>
-                </button>
-              );
-            })}
-          </div>
-
-          {d.subjects.length > 0 && (
-            <>
-              <div className="label-xs" style={{ marginTop: 22, marginBottom: 8 }}>By subject</div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
-                {d.subjects.map(s => {
-                  const I = SUBJECT_ICONS[s.id];
-                  return (
-                    <button key={s.id} data-subject={s.id} style={{
-                      display: "flex", alignItems: "center", gap: 8, padding: "6px 10px",
-                      borderRadius: "var(--r-sm)", fontSize: "var(--fs-13)",
-                      color: "var(--ink-2)",
-                    }}>
-                      <span style={{ width: 12, height: 12, color: "var(--s)" }}>{I && <I />}</span>
-                      <span style={{ flex: 1, textAlign: "left" }}>{s.name}</span>
-                      <span className="mono tabular" style={{ fontSize: 10.5, color: "var(--ink-3)" }}>{s.resourceCount}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </>
-          )}
-        </div>
-
-        <Card padded={false}>
-          {d.libItems.length === 0 ? (
-            <EmptyState
-              icon={Ic.Books}
-              title="Nothing in your library yet"
-              hint="Upload a PDF or paste notes — the AI will chunk and index them so you can ask questions, generate summaries, and build quizzes."
-              cta={{ icon: Ic.Upload, label: "Upload your first resource" }}
-            />
-          ) : (
-            <>
-              <div style={{
-                display: "grid", gridTemplateColumns: "1.6fr auto 100px 110px 80px",
-                gap: 12, padding: "10px 16px", borderBottom: "1px solid var(--line)",
-                fontSize: 10.5, letterSpacing: "0.08em", textTransform: "uppercase",
-                color: "var(--ink-3)", fontWeight: 500,
-              }}>
-                <span>Title</span>
-                <span>Subject</span>
-                <span>Type</span>
-                <span>Difficulty</span>
-                <span style={{ textAlign: "right" }}>Modified</span>
-              </div>
-              {items.map((it, i) => {
-                const subj = d.subjects.find(x => x.id === it.subj);
-                const KI = KIND_ICONS[it.kind];
-                const SI = subj ? SUBJECT_ICONS[it.subj] : null;
-                return (
-                  <div key={i} data-subject={it.subj} style={{
-                    display: "grid", gridTemplateColumns: "1.6fr auto 100px 110px 80px",
-                    gap: 12, padding: "10px 16px", alignItems: "center",
-                    borderTop: i === 0 ? "none" : "1px solid var(--line-soft)",
-                  }}
-                    onMouseEnter={e => e.currentTarget.style.background = "var(--surface-2)"}
-                    onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
-                    <div style={{ display: "flex", gap: 10, alignItems: "center", minWidth: 0 }}>
-                      <span style={{
-                        width: 28, height: 28, borderRadius: 6,
-                        background: "var(--s-soft)", color: "var(--s)",
-                        display: "grid", placeItems: "center", flexShrink: 0,
-                      }}>
-                        <span style={{ width: 14, height: 14 }}><KI /></span>
-                      </span>
-                      <div style={{ minWidth: 0 }}>
-                        <div style={{ fontSize: "var(--fs-14)", fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{it.title}</div>
-                        <div style={{ fontSize: 11.5, color: "var(--ink-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{it.meta}</div>
-                      </div>
-                    </div>
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, color: "var(--s)", whiteSpace: "nowrap" }}>
-                      {SI && <span style={{ width: 11, height: 11, flexShrink: 0 }}><SI /></span>}
-                      {subj?.name || "—"}
-                    </span>
-                    <span style={{ fontSize: 11.5, color: "var(--ink-2)" }}>{it.tag}</span>
-                    <span className="mono" style={{ fontSize: 11, color: it.diff === "III" ? "var(--due)" : it.diff === "II" ? "var(--warn)" : "var(--ok)" }}>{it.diff}</span>
-                    <span className="mono tabular" style={{ fontSize: 11, color: "var(--ink-3)", textAlign: "right" }}>{it.t}</span>
-                  </div>
-                );
-              })}
-            </>
-          )}
-        </Card>
-      </div>
-    </div>
-  );
-}
 
 // ── Generic empty state ────────────────────────────────────────────────────
 function EmptyState({ icon: I, title, hint, cta, onCta }) {
@@ -178,6 +27,15 @@ function EmptyState({ icon: I, title, hint, cta, onCta }) {
 // Calendar — dynamic dates, event composer
 // ═══════════════════════════════════════════════════════════════════════════
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const CAL_STORAGE_KEY = "ll-calendar-events-v1";
+
+function loadCalEvents(seed) {
+  try {
+    const raw = localStorage.getItem(CAL_STORAGE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return seed;
+}
 
 function Calendar_View() {
   const d = useAppData();
@@ -189,13 +47,28 @@ function Calendar_View() {
   });
   const hours = Array.from({ length: 13 }, (_, i) => i + 8);
 
-  const [events, setEvents] = useState(d.calEvents);
+  const [events, setEvents] = useState(() => loadCalEvents(d.calEvents));
   const [composer, setComposer] = useState(null);
   const [draft, setDraft] = useState({ title: "", subj: d.subjects[0]?.id || "", kind: "Lecture", length: 1 });
+  const [selected, setSelected] = useState(null);
+
+  const saveEvents = (next) => {
+    const resolved = typeof next === "function" ? next(events) : next;
+    setEvents(resolved);
+    try { localStorage.setItem(CAL_STORAGE_KEY, JSON.stringify(resolved)); } catch {}
+  };
+
+  const conflict = composer
+    ? events.find(ev =>
+        ev.d === composer.day &&
+        ev.h < composer.hour + parseFloat(draft.length) &&
+        ev.h + ev.l > composer.hour
+      )
+    : null;
 
   const addEvent = () => {
     if (!draft.title.trim() || composer == null) return;
-    setEvents(es => [...es, { d: composer.day, h: composer.hour, l: parseFloat(draft.length), subj: draft.subj, kind: draft.kind, title: draft.title }]);
+    saveEvents(es => [...es, { d: composer.day, h: composer.hour, l: parseFloat(draft.length), subj: draft.subj, kind: draft.kind, title: draft.title }]);
     setComposer(null);
     setDraft({ title: "", subj: d.subjects[0]?.id || "", kind: "Lecture", length: 1 });
   };
@@ -282,42 +155,64 @@ function Calendar_View() {
             const nowMins = isToday ? today.getHours() + today.getMinutes() / 60 : null;
             return (
               <div key={di} style={{ position: "relative", borderLeft: "1px solid var(--line)" }}>
-                {hours.map(h => (
-                  <div key={h}
-                    onClick={() => setComposer({ day: di, hour: h })}
-                    style={{
-                      height: 44, borderBottom: "1px solid var(--line-soft)",
-                      cursor: "pointer",
-                      transition: "background 120ms",
-                    }}
-                    onMouseEnter={e => e.currentTarget.style.background = "var(--accent-soft)"}
-                    onMouseLeave={e => e.currentTarget.style.background = "transparent"}
-                  />
-                ))}
+                {hours.map(h => {
+                  const blocked = events.some(ev => ev.d === di && ev.h <= h && ev.h + ev.l > h);
+                  return (
+                    <div key={h}
+                      onClick={() => setComposer({ day: di, hour: h })}
+                      style={{
+                        height: 44, borderBottom: "1px solid var(--line-soft)",
+                        cursor: "pointer",
+                        transition: "background 120ms",
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.background = blocked ? "var(--due-soft)" : "var(--accent-soft)"}
+                      onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                    />
+                  );
+                })}
                 {nowMins != null && nowMins >= 8 && nowMins < 21 && (
                   <div style={{ position: "absolute", left: 0, right: 0, top: ((nowMins - 8) * 44), height: 1, background: "var(--accent)", zIndex: 5, pointerEvents: "none" }}>
                     <span style={{ position: "absolute", left: -4, top: -4, width: 8, height: 8, borderRadius: "50%", background: "var(--accent)" }} />
                   </div>
                 )}
-                {events.filter(e => e.d === di).map((ev, i) => (
-                  <div key={i} data-subject={ev.subj} style={{
-                    position: "absolute",
-                    top: (ev.h - 8) * 44 + 2,
-                    height: ev.l * 44 - 4,
-                    left: 4, right: 4,
-                    background: "var(--s-soft)",
-                    borderLeft: "3px solid var(--s)",
-                    borderRadius: 4,
-                    padding: "5px 8px",
-                    fontSize: 11,
-                    overflow: "hidden",
-                    color: "var(--ink)",
-                    pointerEvents: "none",
-                  }}>
-                    <div style={{ fontSize: 10, color: "var(--s)", fontWeight: 500 }}>{ev.kind}</div>
-                    <div style={{ fontWeight: 500, lineHeight: 1.25, overflow: "hidden", textOverflow: "ellipsis" }}>{ev.title}</div>
-                  </div>
-                ))}
+                {events.filter(e => e.d === di).map((ev, i) => {
+                  const selKey = `${ev.d}-${ev.h}-${ev.title}`;
+                  const isSel = selected === selKey;
+                  const globalIdx = events.indexOf(ev);
+                  return (
+                    <div key={i} data-subject={ev.subj}
+                      onClick={e => { e.stopPropagation(); setSelected(isSel ? null : selKey); }}
+                      style={{
+                        position: "absolute",
+                        top: (ev.h - 8) * 44 + 2,
+                        height: Math.max(ev.l * 44 - 4, 20),
+                        left: 4, right: 4,
+                        background: "var(--s-soft)",
+                        borderLeft: `3px solid var(--s)`,
+                        borderRadius: 4,
+                        padding: "5px 8px",
+                        fontSize: 11,
+                        overflow: "hidden",
+                        color: "var(--ink)",
+                        cursor: "pointer",
+                        outline: isSel ? "2px solid var(--s)" : "none",
+                        zIndex: isSel ? 10 : 2,
+                      }}>
+                      <div style={{ fontSize: 10, color: "var(--s)", fontWeight: 500 }}>{ev.kind}</div>
+                      <div style={{ fontWeight: 500, lineHeight: 1.25, overflow: "hidden", textOverflow: "ellipsis" }}>{ev.title}</div>
+                      {isSel && (
+                        <button
+                          onClick={e => { e.stopPropagation(); saveEvents(events.filter((_, idx) => idx !== globalIdx)); setSelected(null); }}
+                          style={{
+                            position: "absolute", top: 3, right: 4,
+                            fontSize: 13, lineHeight: 1, color: "var(--s)",
+                            background: "var(--s-soft)", border: "none",
+                            borderRadius: 3, cursor: "pointer", padding: "0 2px",
+                          }}>×</button>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             );
           })}
@@ -337,6 +232,12 @@ function Calendar_View() {
               width: 24, height: 24, color: "var(--ink-3)", display: "grid", placeItems: "center", borderRadius: 4,
             }}><span style={{ width: 13, height: 13 }}><Ic.X /></span></button>
           </div>
+          {conflict && (
+            <div style={{ fontSize: 12, color: "var(--warn)", padding: "0 0 8px", display: "flex", alignItems: "center", gap: 6 }}>
+              <span>⚠</span>
+              <span>Overlaps with <strong>"{conflict.title}"</strong> ({String(conflict.h).padStart(2,"0")}:00–{String(conflict.h + conflict.l).padStart(2,"0")}:00). You can still add it.</span>
+            </div>
+          )}
           <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 0.7fr auto", gap: 8 }}>
             <input autoFocus placeholder="Event title — e.g. Pset 4 study"
               value={draft.title} onChange={e => setDraft(s => ({ ...s, title: e.target.value }))}
@@ -353,7 +254,7 @@ function Calendar_View() {
               {["Lecture", "Lab", "Tutorial", "Reading", "Self-study", "Deadline", "Quiz"].map(k => <option key={k}>{k}</option>)}
             </select>
             <select value={draft.length} onChange={e => setDraft(s => ({ ...s, length: e.target.value }))} style={selectStyle}>
-              {[0.5, 1, 1.5, 2, 2.5, 3].map(l => <option key={l} value={l}>{l}h</option>)}
+              {[0.5, 1, 1.5, 2, 2.5, 3, 4].map(l => <option key={l} value={l}>{l}h</option>)}
             </select>
             <Btn variant="primary" icon={Ic.Plus} onClick={addEvent}>Add</Btn>
           </div>
@@ -752,4 +653,4 @@ function miniBtn(v) {
   };
 }
 
-export { Library, Calendar_View, Analytics, Inbox };
+export { Calendar_View, Analytics, Inbox };
