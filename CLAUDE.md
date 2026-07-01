@@ -406,6 +406,7 @@ workspace. Each subject type has a distinct view flavour:
   - `stopPropagation` on event block click prevents the cell-click composer from also opening
   - `height: Math.max(ev.l * 44 - 4, 20)` — enforces 20px minimum for 0.5h events
   - Duration options extended: `[0.5, 1, 1.5, 2, 2.5, 3, 4]` (adds 4h for long study sessions)
+  - Blocked-slot hover: hour cells check `events.some(ev => ev.d === di && ev.h <= h && ev.h + ev.l > h)`; if occupied, `onMouseEnter` shows `var(--due-soft)` (red) instead of `var(--accent-soft)` (blue) — visually signals the slot is taken
 
 ### Session — 2026-06-18
 - **Removed Library feature (surgical UI-only removal):**
@@ -419,3 +420,16 @@ workspace. Each subject type has a distinct view flavour:
   - **No backend changes** — Library had zero API routes and zero shared services
   - Navigation is now: Today · Calendar · Analytics
   - All other features (AI Tools, RAG, Quiz, Summary, Analytics, Calendar, Study Timer) verified unaffected
+
+### Session — 2026-07-01
+- **Removed Lectures feature (surgical UI-only removal, `Workspaces.jsx`):**
+  - `{ id: "lectures", ... }` tab removed from `MathWorkspace`, `ProgWorkspace`, `LitWorkspace`, `GenericSubject` tabs arrays
+  - `{ id: "lecture", label: "Lecture", ... }` entry removed from `ADD_KINDS` — "Add Lecture" no longer appears in the Add menu
+  - `stage === "lecture"` dead-code branches removed from AddContentMenu placeholder ternary and due-date input condition
+  - No backend changes, no data changes, no other features affected
+- **Implemented Subject Resources Management (`Workspaces.jsx`):**
+  - `useSubjectResources(subjectId)` hook: reads/writes `ll-resources-v1` localStorage key; filters strictly by `subjectId` for full subject isolation; supports `addPDF` (FileReader → base64 dataUrl, 2 MB cap with user-facing error), `addLink`, `deleteResource`, `updateLink`; uses functional state updates to avoid stale closure issues in async callbacks
+  - `ResourcesPanel` component: self-contained (calls hook internally); empty state with "Upload PDF" / "Add Link" CTAs; separate **PDFs** section (`Ic.Pdf` red icon) with Open/Download/Delete; separate **Links** section (`Ic.Globe` accent icon) with Open/Edit/Delete; inline edit form replaces link card in-place; dismissible error banner for oversized files
+  - **Add menu integration**: "Reading" entry replaced with "Resource" (`id: "resource"`) — clicking it navigates to the Resources tab and closes the menu instead of opening an inline form; each workspace intercepts `onAdd({ kind: "resource" })` via a local `handleAdd` and calls `setTab("resources")`
+  - **Resources tab added to all 5 workspace types**: MathWorkspace, ProgWorkspace, BioWorkspace, LitWorkspace each get a "Resources" tab + `{tab === "resources" ? <ResourcesPanel subjectId={s.id} /> : <>{existing content}</>}` conditional; GenericSubject renders `<ResourcesPanel>` for the existing "resources" tab (replaces old generic empty state placeholder)
+  - **AI pipeline untouched**: resources stored locally are never indexed, embedded, or sent to RAG; `emitAIActivity` not called from resource flows; no backend files modified

@@ -8,11 +8,53 @@ import {
 } from "./data.js";
 import { Card, Pill, Btn, SectionTitle, Ic, SUBJECT_ICONS, getCustomColorVars } from "./Shell.jsx";
 
+function useSubjectResources(subjectId) {
+  const [all, setAll] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("ll-resources-v1") || "[]"); }
+    catch { return []; }
+  });
+
+  const resources = all.filter(r => r.subjectId === subjectId);
+
+  const mutate = (fn) => setAll(prev => {
+    const next = fn(prev);
+    try { localStorage.setItem("ll-resources-v1", JSON.stringify(next)); } catch {}
+    return next;
+  });
+
+  const addPDF = (file, onError) => {
+    if (file.size > 2 * 1024 * 1024) {
+      onError?.("File exceeds 2 MB. Use Upload & Index in AI Tools for larger PDFs.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (e) => mutate(prev => [...prev, {
+      id: `r_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      subjectId, type: "pdf",
+      name: file.name, size: file.size,
+      date: new Date().toISOString().slice(0, 10),
+      dataUrl: e.target.result,
+    }]);
+    reader.readAsDataURL(file);
+  };
+
+  const addLink = ({ name, url }) => mutate(prev => [...prev, {
+    id: `r_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+    subjectId, type: "link", name, url,
+    date: new Date().toISOString().slice(0, 10),
+  }]);
+
+  const deleteResource = (id) => mutate(prev => prev.filter(r => r.id !== id));
+
+  const updateLink = (id, patch) => mutate(prev => prev.map(r => r.id === id ? { ...r, ...patch } : r));
+
+  return { resources, addPDF, addLink, deleteResource, updateLink };
+}
+
 // ── Add-content menu used by every subject header ──────────────────────────
 const ADD_KINDS = [
-  { id: "lecture",  label: "Lecture",        hint: "Schedule a class or upload slides",  icon: "Video" },
   { id: "homework", label: "Homework",        hint: "Assignment with a due date",         icon: "Note" },
-  { id: "reading",  label: "Reading",         hint: "PDF, textbook chapter, or article",  icon: "Books" },
+  { id: "resource", label: "Resource",         hint: "Upload a PDF or save a link",         icon: "Books" },
   { id: "note",     label: "Note",            hint: "Free-form study note",               icon: "Note" },
   { id: "quiz",     label: "Quiz",            hint: "Generate from notes via AI Tools",   icon: "Quiz" },
   { id: "deck",     label: "Flashcard deck",  hint: "Spaced-repetition deck",             icon: "Card" },
@@ -56,7 +98,14 @@ function AddContentMenu({ subject, onAdd }) {
                 {ADD_KINDS.map(k => {
                   const I = Ic[k.icon];
                   return (
-                    <button key={k.id} onClick={() => setStage(k.id)} style={{
+                    <button key={k.id} onClick={() => {
+                      if (k.id === "resource") {
+                        onAdd?.({ kind: "resource", subj: subject.id });
+                        setOpen(false);
+                      } else {
+                        setStage(k.id);
+                      }
+                    }} style={{
                       display: "flex", alignItems: "flex-start", gap: 10, width: "100%",
                       padding: "9px 10px", borderRadius: 6, textAlign: "left",
                     }}
@@ -86,21 +135,19 @@ function AddContentMenu({ subject, onAdd }) {
               <div style={{ padding: 14, display: "flex", flexDirection: "column", gap: 10 }}>
                 <input autoFocus value={draft.title} onChange={e => setDraft(d => ({ ...d, title: e.target.value }))}
                   placeholder={
-                    stage === "lecture"  ? "Lecture title — e.g. Algorithms 15" :
                     stage === "homework" ? "Assignment — e.g. Pset 5" :
-                    stage === "reading"  ? "Reading — e.g. CLRS Ch. 14" :
                     stage === "note"     ? "Note title" :
                     stage === "quiz"     ? "Quiz topic — e.g. RB-tree invariants" :
-                                            "Deck name — e.g. Functional groups"
+                                          "Deck name — e.g. Functional groups"
                   }
                   onKeyDown={e => e.key === "Enter" && submit()}
                   style={{
                     padding: "9px 11px", border: "1px solid var(--line)", borderRadius: 6,
                     fontSize: "var(--fs-14)", background: "var(--surface)", color: "var(--ink)",
                   }} />
-                {(stage === "homework" || stage === "lecture" || stage === "reading") && (
+                {stage === "homework" && (
                   <input value={draft.due} onChange={e => setDraft(d => ({ ...d, due: e.target.value }))}
-                    placeholder={stage === "lecture" ? "When — e.g. Tue 14:00" : "Due — e.g. Friday 23:59"}
+                    placeholder="Due — e.g. Friday 23:59"
                     style={{
                       padding: "9px 11px", border: "1px solid var(--line)", borderRadius: 6,
                       fontSize: "var(--fs-13)", background: "var(--surface)", color: "var(--ink)",
@@ -240,18 +287,20 @@ function SubjectHeader({ s, tabs, tab, setTab, recent, onAdd }) {
 // ═══════════════════════════════════════════════════════════════════════════
 function MathWorkspace({ s, recent, onAdd }) {
   const [tab, setTab] = useState("problems");
+  const handleAdd = (item) => { if (item.kind === "resource") setTab("resources"); else onAdd(item); };
   const tabs = [
-    { id: "problems", label: "Problem sets", count: 8 },
-    { id: "theorems", label: "Theorems",     count: 23 },
-    { id: "notes",    label: "Notes" },
-    { id: "lectures", label: "Lectures",     count: 14 },
-    { id: "pyqs",     label: "PYQs",         count: 36 },
+    { id: "problems",  label: "Problem sets", count: 8 },
+    { id: "theorems",  label: "Theorems",     count: 23 },
+    { id: "notes",     label: "Notes" },
+    { id: "pyqs",      label: "PYQs",         count: 36 },
+    { id: "resources", label: "Resources" },
   ];
 
   return (
     <div data-subject={s.id}>
-      <SubjectHeader s={s} tabs={tabs} tab={tab} setTab={setTab} recent={recent} onAdd={onAdd} />
+      <SubjectHeader s={s} tabs={tabs} tab={tab} setTab={setTab} recent={recent} onAdd={handleAdd} />
       <div style={{ padding: "24px 32px 60px", maxWidth: 1400, margin: "0 auto" }}>
+        {tab === "resources" ? <ResourcesPanel subjectId={s.id} /> : <>
         {/* Unit ribbon */}
         <UnitRibbon units={MATH_UNITS} />
 
@@ -310,6 +359,7 @@ function MathWorkspace({ s, recent, onAdd }) {
             </div>
           </Card>
         </div>
+        </>}
       </div>
     </div>
   );
@@ -406,18 +456,20 @@ function TheoremBlock({ t }) {
 // ═══════════════════════════════════════════════════════════════════════════
 function ProgWorkspace({ s, recent, onAdd }) {
   const [tab, setTab] = useState("code");
+  const handleAdd = (item) => { if (item.kind === "resource") setTab("resources"); else onAdd(item); };
   const tabs = [
     { id: "code",      label: "Lab workspace" },
-    { id: "lectures",  label: "Lectures", count: 11 },
     { id: "concepts",  label: "Concepts", count: 47 },
     { id: "psets",     label: "Problem sets", count: 7 },
     { id: "snippets",  label: "Snippets", count: 124 },
+    { id: "resources", label: "Resources" },
   ];
 
   return (
     <div data-subject={s.id}>
-      <SubjectHeader s={s} tabs={tabs} tab={tab} setTab={setTab} recent={recent} onAdd={onAdd} />
+      <SubjectHeader s={s} tabs={tabs} tab={tab} setTab={setTab} recent={recent} onAdd={handleAdd} />
       <div style={{ padding: "20px 32px 60px", maxWidth: 1400, margin: "0 auto" }}>
+        {tab === "resources" ? <ResourcesPanel subjectId={s.id} /> : <>
         {/* IDE-style layout */}
         <Card padded={false} style={{ overflow: "hidden", marginBottom: 16 }}>
           {/* tab strip */}
@@ -537,6 +589,7 @@ function ProgWorkspace({ s, recent, onAdd }) {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
           {PROG_CONCEPTS.map(c => <ConceptCard key={c.n} c={c} />)}
         </div>
+        </>}
       </div>
     </div>
   );
@@ -643,22 +696,222 @@ function ConceptCard({ c }) {
   );
 }
 
+// ── Subject Resources Panel ────────────────────────────────────────────────
+function ResourcesPanel({ subjectId }) {
+  const { resources, addPDF, addLink, deleteResource, updateLink } = useSubjectResources(subjectId);
+  const [mode, setMode] = useState(null);
+  const [linkDraft, setLinkDraft] = useState({ name: "", url: "" });
+  const [editId, setEditId] = useState(null);
+  const [editDraft, setEditDraft] = useState({ name: "", url: "" });
+  const [error, setError] = useState(null);
+  const fileRef = useRef(null);
+
+  const pdfs = resources.filter(r => r.type === "pdf");
+  const links = resources.filter(r => r.type === "link");
+
+  const triggerPDF = () => { setMode("pdf"); setTimeout(() => fileRef.current?.click(), 40); };
+
+  const handleFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    addPDF(file, setError);
+    setMode(null);
+    e.target.value = "";
+  };
+
+  const handleLinkSave = () => {
+    if (!linkDraft.name.trim() || !linkDraft.url.trim()) return;
+    addLink({ name: linkDraft.name.trim(), url: linkDraft.url.trim() });
+    setLinkDraft({ name: "", url: "" });
+    setMode(null);
+  };
+
+  const handleEditSave = () => {
+    if (!editDraft.name.trim() || !editDraft.url.trim()) return;
+    updateLink(editId, { name: editDraft.name.trim(), url: editDraft.url.trim() });
+    setEditId(null);
+  };
+
+  const openItem = (r) => {
+    const href = r.type === "pdf" ? r.dataUrl : r.url;
+    if (!href) return;
+    const a = document.createElement("a");
+    a.href = href; a.target = "_blank"; a.rel = "noopener noreferrer"; a.click();
+  };
+
+  const downloadPDF = (r) => {
+    if (!r.dataUrl) return;
+    const a = document.createElement("a");
+    a.href = r.dataUrl; a.download = r.name; a.click();
+  };
+
+  const inputStyle = {
+    padding: "8px 11px", border: "1px solid var(--line)", borderRadius: "var(--r)",
+    fontSize: "var(--fs-14)", background: "var(--surface)", color: "var(--ink)", width: "100%", boxSizing: "border-box",
+  };
+
+  return (
+    <div>
+      <input ref={fileRef} type="file" accept="application/pdf" style={{ display: "none" }} onChange={handleFileChange} />
+
+      {error && (
+        <div style={{
+          marginBottom: 14, padding: "9px 14px", borderRadius: "var(--r-sm)",
+          background: "var(--due-soft)", color: "var(--due)",
+          fontSize: "var(--fs-13)", display: "flex", alignItems: "center", justifyContent: "space-between",
+        }}>
+          {error}
+          <button onClick={() => setError(null)} style={{ color: "var(--due)", fontWeight: 700, lineHeight: 1, marginLeft: 12 }}>×</button>
+        </div>
+      )}
+
+      {resources.length === 0 && mode === null ? (
+        <div style={{
+          padding: "48px 32px", border: "1px dashed var(--line)", borderRadius: "var(--r-lg)",
+          textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 14,
+        }}>
+          <span style={{ width: 40, height: 40, borderRadius: "var(--r)", background: "var(--surface-2)", color: "var(--ink-3)", display: "grid", placeItems: "center" }}>
+            <span style={{ width: 20, height: 20 }}><Ic.Books /></span>
+          </span>
+          <div>
+            <div style={{ fontSize: "var(--fs-15)", fontWeight: 500, marginBottom: 4 }}>No resources yet</div>
+            <div style={{ fontSize: "var(--fs-13)", color: "var(--ink-3)" }}>Upload PDFs or save useful links for this subject.</div>
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <Btn icon={Ic.Upload} variant="primary" onClick={triggerPDF}>Upload PDF</Btn>
+            <Btn icon={Ic.Plus} onClick={() => setMode("link")}>Add Link</Btn>
+          </div>
+        </div>
+      ) : (
+        <>
+          <div style={{ display: "flex", gap: 8, marginBottom: 18 }}>
+            <Btn icon={Ic.Upload} variant="primary" onClick={triggerPDF}>Upload PDF</Btn>
+            <Btn icon={Ic.Plus} onClick={() => setMode("link")}>Add Link</Btn>
+          </div>
+
+          {mode === "link" && (
+            <Card style={{ padding: "14px 18px", marginBottom: 18, animation: "ll-fade-in 140ms ease" }}>
+              <div className="label-xs" style={{ marginBottom: 10 }}>New link</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <input autoFocus value={linkDraft.name}
+                  onChange={e => setLinkDraft(d => ({ ...d, name: e.target.value }))}
+                  placeholder="Title — e.g. MIT OCW" style={inputStyle} />
+                <input value={linkDraft.url}
+                  onChange={e => setLinkDraft(d => ({ ...d, url: e.target.value }))}
+                  placeholder="https://..."
+                  onKeyDown={e => e.key === "Enter" && handleLinkSave()}
+                  style={inputStyle} />
+                <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                  <Btn variant="ghost" onClick={() => { setMode(null); setLinkDraft({ name: "", url: "" }); }}>Cancel</Btn>
+                  <Btn variant="primary" onClick={handleLinkSave}>Save link</Btn>
+                </div>
+              </div>
+            </Card>
+          )}
+
+          {pdfs.length > 0 && (
+            <div style={{ marginBottom: 22 }}>
+              <div className="label-xs" style={{ marginBottom: 8 }}>PDFs · {pdfs.length}</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {pdfs.map(r => (
+                  <Card key={r.id} style={{ padding: "10px 16px", display: "flex", alignItems: "center", gap: 12 }}>
+                    <span style={{ width: 32, height: 32, borderRadius: "var(--r-sm)", background: "var(--due-soft)", color: "var(--due)", display: "grid", placeItems: "center", flexShrink: 0 }}>
+                      <span style={{ width: 16, height: 16 }}><Ic.Pdf /></span>
+                    </span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: "var(--fs-14)", fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.name}</div>
+                      <div className="mono" style={{ fontSize: 11, color: "var(--ink-3)", marginTop: 2 }}>
+                        {r.date}{r.size ? ` · ${(r.size / 1024).toFixed(0)} KB` : ""}
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+                      <Btn variant="ghost" onClick={() => openItem(r)}>Open</Btn>
+                      <Btn variant="ghost" onClick={() => downloadPDF(r)}>Download</Btn>
+                      <button onClick={() => deleteResource(r.id)}
+                        style={{ width: 28, height: 28, borderRadius: "var(--r-sm)", color: "var(--ink-3)", display: "grid", placeItems: "center" }}
+                        onMouseEnter={e => e.currentTarget.style.color = "var(--due)"}
+                        onMouseLeave={e => e.currentTarget.style.color = "var(--ink-3)"}>
+                        <span style={{ width: 14, height: 14 }}><Ic.Trash /></span>
+                      </button>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {links.length > 0 && (
+            <div style={{ marginBottom: 22 }}>
+              <div className="label-xs" style={{ marginBottom: 8 }}>Links · {links.length}</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {links.map(r => (
+                  editId === r.id ? (
+                    <Card key={r.id} style={{ padding: "12px 16px", animation: "ll-fade-in 140ms ease" }}>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                        <input autoFocus value={editDraft.name}
+                          onChange={e => setEditDraft(d => ({ ...d, name: e.target.value }))}
+                          placeholder="Title" style={inputStyle} />
+                        <input value={editDraft.url}
+                          onChange={e => setEditDraft(d => ({ ...d, url: e.target.value }))}
+                          placeholder="https://..."
+                          onKeyDown={e => e.key === "Enter" && handleEditSave()}
+                          style={inputStyle} />
+                        <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                          <Btn variant="ghost" onClick={() => setEditId(null)}>Cancel</Btn>
+                          <Btn variant="primary" onClick={handleEditSave}>Save</Btn>
+                        </div>
+                      </div>
+                    </Card>
+                  ) : (
+                    <Card key={r.id} style={{ padding: "10px 16px", display: "flex", alignItems: "center", gap: 12 }}>
+                      <span style={{ width: 32, height: 32, borderRadius: "var(--r-sm)", background: "var(--accent-soft)", color: "var(--accent)", display: "grid", placeItems: "center", flexShrink: 0 }}>
+                        <span style={{ width: 16, height: 16 }}><Ic.Globe /></span>
+                      </span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: "var(--fs-14)", fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.name}</div>
+                        <div className="mono" style={{ fontSize: 11, color: "var(--ink-3)", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.url}</div>
+                      </div>
+                      <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+                        <Btn variant="ghost" onClick={() => openItem(r)}>Open</Btn>
+                        <Btn variant="ghost" onClick={() => { setEditId(r.id); setEditDraft({ name: r.name, url: r.url }); }}>Edit</Btn>
+                        <button onClick={() => deleteResource(r.id)}
+                          style={{ width: 28, height: 28, borderRadius: "var(--r-sm)", color: "var(--ink-3)", display: "grid", placeItems: "center" }}
+                          onMouseEnter={e => e.currentTarget.style.color = "var(--due)"}
+                          onMouseLeave={e => e.currentTarget.style.color = "var(--ink-3)"}>
+                          <span style={{ width: 14, height: 14 }}><Ic.Trash /></span>
+                        </button>
+                      </div>
+                    </Card>
+                  )
+                ))}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // BIOLOGY WORKSPACE — diagram-heavy
 // ═══════════════════════════════════════════════════════════════════════════
 function BioWorkspace({ s, recent, onAdd }) {
   const [tab, setTab] = useState("diagrams");
+  const handleAdd = (item) => { if (item.kind === "resource") setTab("resources"); else onAdd(item); };
   const tabs = [
-    { id: "diagrams", label: "Diagrams", count: 24 },
-    { id: "reading",  label: "Reading" },
-    { id: "lab",      label: "Lab notebook" },
-    { id: "cards",    label: "Flashcards", count: 612 },
-    { id: "glossary", label: "Glossary",   count: 287 },
+    { id: "diagrams",  label: "Diagrams", count: 24 },
+    { id: "reading",   label: "Reading" },
+    { id: "lab",       label: "Lab notebook" },
+    { id: "cards",     label: "Flashcards", count: 612 },
+    { id: "glossary",  label: "Glossary",   count: 287 },
+    { id: "resources", label: "Resources" },
   ];
   return (
     <div data-subject={s.id}>
-      <SubjectHeader s={s} tabs={tabs} tab={tab} setTab={setTab} recent={recent} onAdd={onAdd} />
+      <SubjectHeader s={s} tabs={tabs} tab={tab} setTab={setTab} recent={recent} onAdd={handleAdd} />
       <div style={{ padding: "24px 32px 60px", maxWidth: 1400, margin: "0 auto" }}>
+        {tab === "resources" ? <ResourcesPanel subjectId={s.id} /> : <>
         <SectionTitle kicker="Active unit" title="Unit 06 · Membrane transport"
           action={<div style={{ display: "flex", gap: 6 }}>
             <Pill subject={s.id} tone="subject">9 diagrams</Pill>
@@ -711,6 +964,7 @@ function BioWorkspace({ s, recent, onAdd }) {
             </div>
           </Card>
         </div>
+        </>}
       </div>
     </div>
   );
@@ -902,18 +1156,20 @@ function ReadingBlock() {
 // ═══════════════════════════════════════════════════════════════════════════
 function LitWorkspace({ s, recent, onAdd }) {
   const [tab, setTab] = useState("text");
+  const handleAdd = (item) => { if (item.kind === "resource") setTab("resources"); else onAdd(item); };
   const tabs = [
-    { id: "text",     label: "Text" },
-    { id: "essay",    label: "Essay draft" },
-    { id: "themes",   label: "Themes", count: 7 },
-    { id: "context",  label: "Historical context" },
-    { id: "lectures", label: "Lectures", count: 9 },
+    { id: "text",      label: "Text" },
+    { id: "essay",     label: "Essay draft" },
+    { id: "themes",    label: "Themes", count: 7 },
+    { id: "context",   label: "Historical context" },
+    { id: "resources", label: "Resources" },
   ];
 
   return (
     <div data-subject={s.id}>
-      <SubjectHeader s={s} tabs={tabs} tab={tab} setTab={setTab} recent={recent} onAdd={onAdd} />
+      <SubjectHeader s={s} tabs={tabs} tab={tab} setTab={setTab} recent={recent} onAdd={handleAdd} />
       <div style={{ padding: "24px 32px 60px", maxWidth: 1400, margin: "0 auto" }}>
+        {tab === "resources" ? <ResourcesPanel subjectId={s.id} /> :
         <div style={{ display: "grid", gridTemplateColumns: "200px 1fr 320px", gap: 18 }}>
           {/* Left: outline */}
           <div>
@@ -1044,7 +1300,7 @@ function LitWorkspace({ s, recent, onAdd }) {
               </div>
             </Card>
           </div>
-        </div>
+        </div>}
       </div>
     </div>
   );
@@ -1057,9 +1313,9 @@ function GenericSubject({ s, recent, onAdd }) {
   const [tab, setTab] = useState("notes");
   const [notes, setNotes] = useState([]);
   const [noteInput, setNoteInput] = useState("");
+  const handleAdd = (item) => { if (item.kind === "resource") setTab("resources"); else onAdd(item); };
   const tabs = [
     { id: "notes",     label: "Notes",     count: notes.length || undefined },
-    { id: "lectures",  label: "Lectures" },
     { id: "practice",  label: "Practice" },
     { id: "resources", label: "Resources" },
   ];
@@ -1074,7 +1330,7 @@ function GenericSubject({ s, recent, onAdd }) {
 
   return (
     <div data-subject={s.id} style={colorVars}>
-      <SubjectHeader s={s} tabs={tabs} tab={tab} setTab={setTab} recent={recent} onAdd={onAdd} />
+      <SubjectHeader s={s} tabs={tabs} tab={tab} setTab={setTab} recent={recent} onAdd={handleAdd} />
       <div style={{ padding: "24px 32px 60px", maxWidth: 1400, margin: "0 auto" }}>
         {tab === "notes" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -1117,7 +1373,8 @@ function GenericSubject({ s, recent, onAdd }) {
             )}
           </div>
         )}
-        {tab !== "notes" && (
+        {tab === "resources" && <ResourcesPanel subjectId={s.id} />}
+        {tab !== "notes" && tab !== "resources" && (
           <div style={{
             padding: 32, border: "1px dashed var(--line)", borderRadius: "var(--r-lg)",
             textAlign: "center", color: "var(--ink-3)", fontSize: "var(--fs-14)",
