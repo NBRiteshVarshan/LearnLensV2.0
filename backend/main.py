@@ -62,7 +62,6 @@ LLM_MODEL = "llama-3.3-70b-versatile"
 # =========================================================
 
 BASE_DIR = pathlib.Path(__file__).parent
-QDRANT_DATA_DIR = BASE_DIR / "qdrant_data"
 PDF_STORE_PATH = BASE_DIR / "pdf_store.json"
 UPLOADS_DIR = BASE_DIR / "uploads"
 STATIC_DIR = BASE_DIR.parent / "frontend" / "dist"
@@ -112,15 +111,13 @@ async def lifespan(app: FastAPI):
     global qdrant, embedding_model
 
     # Remove stale lock file left by a previously crashed process
-    lock_file = QDRANT_DATA_DIR / ".lock"
-    if lock_file.exists():
-        lock_file.unlink()
-        print("Removed stale Qdrant lock file")
 
-    QDRANT_DATA_DIR.mkdir(parents=True, exist_ok=True)
     UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 
-    qdrant = QdrantClient(path=str(QDRANT_DATA_DIR))
+    qdrant = QdrantClient(
+        url=os.getenv("QDRANT_URL"),
+        api_key=os.getenv("QDRANT_API_KEY")
+    )
     existing = [c.name for c in qdrant.get_collections().collections]
     if COLLECTION_NAME not in existing:
         qdrant.create_collection(
@@ -130,7 +127,7 @@ async def lifespan(app: FastAPI):
         print(f"Created Qdrant collection: {COLLECTION_NAME}")
 
     print("Loading embedding model...")
-    embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
+    embedding_model = SentenceTransformer("all-MiniLM-L6-v2", device = "cpu")
     print("Embedding model loaded")
 
     load_pdf_store()
@@ -146,7 +143,10 @@ app = FastAPI(title="LearnLens API", version="3.2", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://localhost:5173",
+        "https://your-frontend.vercel.app"
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
