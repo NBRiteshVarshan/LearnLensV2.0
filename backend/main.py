@@ -564,7 +564,7 @@ FORMAT:
     "question": "Question text",
     "options": ["A. Option", "B. Option", "C. Option", "D. Option"],
     "answer": "A",
-    "explanation": "Brief explanation (30-400 chars)"
+    "explanation": "Brief explanation (200-400 chars)"
   }}
 ]
 
@@ -572,7 +572,7 @@ STRICT RULES:
 - EXACTLY 10 questions
 - EXACTLY 4 options per question
 - Answer must be A, B, C, or D
-- Explanation must be 30-400 characters
+- Explanation must be 200-400 characters
 
 CONTENT:
 {context}
