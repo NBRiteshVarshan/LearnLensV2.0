@@ -34,7 +34,8 @@ from qdrant_client.models import (
     PointStruct,
     Filter,
     FieldCondition,
-    MatchValue
+    MatchValue,
+    PayloadSchemaType
 )
 
 from groq import Groq
@@ -125,10 +126,15 @@ async def lifespan(app: FastAPI):
             vectors_config=VectorParams(size=384, distance=Distance.COSINE),
         )
         print(f"Created Qdrant collection: {COLLECTION_NAME}")
+    qdrant.create_payload_index(
+        collection_name=COLLECTION_NAME,
+        field_name="pdf_id",
+        field_schema=PayloadSchemaType.KEYWORD
+    )
 
+    print("Created payload index for pdf_id")
     print("Loading embedding model...")
-    embedding_model = SentenceTransformer("all-MiniLM-L6-v2", device = "cpu")
-    print("Embedding model loaded")
+    embedding_model = SentenceTransformer("all-MiniLM-L6-v2", device="cpu")
 
     load_pdf_store()
     yield
@@ -301,8 +307,8 @@ def get_context_from_pdfs(pdf_ids: List[str], max_chunks: int = 45, max_chars: i
 
 
 def get_relevant_context_for_question(question: str, pdf_ids: List[str],
-                                       max_chunks_per_pdf: int = 4,
-                                       max_total_chars: int = 4000) -> str:
+    max_chunks_per_pdf: int = 4,
+    max_total_chars: int = 4000) -> str:
     try:
         query_embedding = embedding_model.encode(question).tolist()
         all_relevant_docs = []

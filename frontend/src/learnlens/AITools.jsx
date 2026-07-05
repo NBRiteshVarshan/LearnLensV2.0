@@ -1,4 +1,5 @@
 const API = import.meta.env.VITE_API_URL;
+console.log("API =", API)
 
 import React, { useState, useRef, useEffect } from "react";
 import { Card, Pill, Btn, Ic } from "./Shell.jsx";
