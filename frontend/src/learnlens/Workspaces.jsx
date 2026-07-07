@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
   useAppData,
   MATH_UNITS, MATH_THEOREMS, MATH_PROBLEMS,
@@ -7,6 +7,7 @@ import {
   LIT_PASSAGE, LIT_ANNOTATIONS,
 } from "./data.js";
 import { Card, Pill, Btn, SectionTitle, Ic, SUBJECT_ICONS, getCustomColorVars } from "./Shell.jsx";
+import { emitAIActivity } from "./useStudyAnalytics.jsx";
 
 function useSubjectResources(subjectId) {
   const [all, setAll] = useState(() => {
@@ -27,14 +28,35 @@ function useSubjectResources(subjectId) {
       onError?.("File exceeds 2 MB. Use Upload & Index in AI Tools for larger PDFs.");
       return;
     }
+    const rid = `r_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
     const reader = new FileReader();
-    reader.onload = (e) => mutate(prev => [...prev, {
-      id: `r_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-      subjectId, type: "pdf",
-      name: file.name, size: file.size,
-      date: new Date().toISOString().slice(0, 10),
-      dataUrl: e.target.result,
-    }]);
+    reader.onload = (e) => {
+      mutate(prev => [...prev, {
+        id: rid, subjectId, type: "pdf",
+        name: file.name, size: file.size,
+        date: new Date().toISOString().slice(0, 10),
+        dataUrl: e.target.result,
+        pdfId: null, indexed: false,
+      }]);
+      (async () => {
+        try {
+          emitAIActivity({ type: "upload", label: `Uploading ${file.name}`, status: "processing" });
+          const formData = new FormData();
+          formData.append("file", file);
+          const upRes = await fetch("/api/upload", { method: "POST", body: formData });
+          if (!upRes.ok) return;
+          const { pdf_id } = await upRes.json();
+          const ingRes = await fetch("/api/ingest", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ pdf_id }),
+          });
+          if (!ingRes.ok) return;
+          mutate(prev => prev.map(r => r.id === rid ? { ...r, pdfId: pdf_id, indexed: true } : r));
+          emitAIActivity({ type: "embed", label: `Indexed ${file.name}`, status: "done" });
+        } catch { /* non-fatal — PDF is still saved locally */ }
+      })();
+    };
     reader.readAsDataURL(file);
   };
 
@@ -167,11 +189,45 @@ function AddContentMenu({ subject, onAdd }) {
 }
 
 // ── Shared subject header ──────────────────────────────────────────────────
+const CAL_DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+function useNextCalSession(subjectId) {
+  return useMemo(() => {
+    try {
+      const raw = localStorage.getItem("ll-calendar-events-v1");
+      if (!raw) return null;
+      const evts = JSON.parse(raw);
+      const today = new Date();
+      const monday = new Date(today);
+      monday.setDate(today.getDate() - ((today.getDay() + 6) % 7));
+      monday.setHours(0, 0, 0, 0);
+      const todayIdx = (today.getDay() + 6) % 7;
+      const upcoming = evts
+        .filter(ev => ev.subj === subjectId)
+        .map(ev => {
+          const d = new Date(monday);
+          d.setDate(monday.getDate() + ev.d);
+          d.setHours(ev.h, 0, 0, 0);
+          return { ev, date: d };
+        })
+        .filter(({ date }) => date > today)
+        .sort((a, b) => a.date - b.date);
+      if (!upcoming.length) return null;
+      const { ev } = upcoming[0];
+      const label = ev.d === todayIdx ? "Today" : CAL_DAY_LABELS[ev.d];
+      const h = ev.h % 12 || 12;
+      const ampm = ev.h >= 12 ? "PM" : "AM";
+      return `${label} ${h}:00 ${ampm}`;
+    } catch { return null; }
+  }, [subjectId]);
+}
+
 function SubjectHeader({ s, tabs, tab, setTab, recent, onAdd }) {
   const SI = SUBJECT_ICONS[s.id];
   const isCustom = !SI;
   const CI = isCustom && s.icon ? Ic[s.icon] : null;
   const colorVars = isCustom ? getCustomColorVars(s.color) : {};
+  const nextSession = useNextCalSession(s.id);
   return (
     <div data-subject={s.id} style={{
       padding: "22px 32px 0", borderBottom: "1px solid var(--line)",
@@ -198,7 +254,7 @@ function SubjectHeader({ s, tabs, tab, setTab, recent, onAdd }) {
           </div>
           <div>
             <div className="mono" style={{ fontSize: 11, color: "var(--ink-3)", marginBottom: 2 }}>
-              {s.code} · {s.instructor} · {s.session}
+              {s.code} · {s.instructor} · {nextSession ? `Next: ${nextSession}` : s.session}
             </div>
             <h1 style={{
               fontFamily: "var(--font-serif)", fontWeight: 400,
@@ -215,11 +271,6 @@ function SubjectHeader({ s, tabs, tab, setTab, recent, onAdd }) {
               <Pill tone={s.next.urgency}>Next: {s.next.due}</Pill>
             </div>
           </div>
-        </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          <Btn icon={Ic.Timer}>Start session</Btn>
-          <Btn icon={Ic.Bookmark} variant="ghost">Pin</Btn>
-          <AddContentMenu subject={s} onAdd={onAdd} />
         </div>
       </div>
 
@@ -733,10 +784,20 @@ function ResourcesPanel({ subjectId }) {
   };
 
   const openItem = (r) => {
-    const href = r.type === "pdf" ? r.dataUrl : r.url;
-    if (!href) return;
-    const a = document.createElement("a");
-    a.href = href; a.target = "_blank"; a.rel = "noopener noreferrer"; a.click();
+    if (r.type === "pdf") {
+      if (!r.dataUrl) return;
+      try {
+        const [, base64] = r.dataUrl.split(",");
+        const bytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+        const blob = new Blob([bytes], { type: "application/pdf" });
+        const url = URL.createObjectURL(blob);
+        const win = window.open(url, "_blank", "noopener,noreferrer");
+        if (win) setTimeout(() => URL.revokeObjectURL(url), 30000);
+      } catch { window.open(r.dataUrl, "_blank", "noopener,noreferrer"); }
+    } else {
+      if (!r.url) return;
+      window.open(r.url, "_blank", "noopener,noreferrer");
+    }
   };
 
   const downloadPDF = (r) => {
@@ -822,10 +883,12 @@ function ResourcesPanel({ subjectId }) {
                       <div style={{ fontSize: "var(--fs-14)", fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.name}</div>
                       <div className="mono" style={{ fontSize: 11, color: "var(--ink-3)", marginTop: 2 }}>
                         {r.date}{r.size ? ` · ${(r.size / 1024).toFixed(0)} KB` : ""}
+                        {r.indexed && <span style={{ color: "var(--ok)", marginLeft: 6 }}>· AI indexed</span>}
+                        {r.pdfId === null && r.indexed === false && <span style={{ color: "var(--ink-3)", marginLeft: 6 }}>· indexing…</span>}
                       </div>
                     </div>
                     <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
-                      <Btn variant="ghost" onClick={() => openItem(r)}>Open</Btn>
+                      <Btn variant="ghost" onClick={() => openItem(r)}>Read</Btn>
                       <Btn variant="ghost" onClick={() => downloadPDF(r)}>Download</Btn>
                       <button onClick={() => deleteResource(r.id)}
                         style={{ width: 28, height: 28, borderRadius: "var(--r-sm)", color: "var(--ink-3)", display: "grid", placeItems: "center" }}

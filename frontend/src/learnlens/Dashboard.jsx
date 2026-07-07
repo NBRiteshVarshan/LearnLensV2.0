@@ -55,11 +55,6 @@ function EmptyDashboard({ user, onAddSubject, setRoute }) {
       value: analytics?.recallAvg != null ? `${analytics.recallAvg}%` : "—",
       sub:   analytics?.recallAvg != null ? analytics.recallTrend : "from flashcards + quizzes",
     },
-    {
-      label: "Real-time AI",
-      value: analytics?.latestAI?.label || "—",
-      sub:   "what the AI is processing",
-    },
   ];
 
   return (
@@ -104,10 +99,10 @@ function EmptyDashboard({ user, onAddSubject, setRoute }) {
             live
           </span>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 0 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 0 }}>
           {previewRows.map((row, i) => (
             <div key={i} style={{
-              padding: "16px 18px", borderRight: i < 3 ? "1px solid var(--line-soft)" : "none",
+              padding: "16px 18px", borderRight: i < 2 ? "1px solid var(--line-soft)" : "none",
             }}>
               <div className="label-xs" style={{ marginBottom: 4 }}>{row.label}</div>
               <div style={{
@@ -159,14 +154,18 @@ function LiveDashboard({ data, setRoute, workflow, onAddSubject }) {
   const analytics = useAnalytics();
   const u = data.user;
   const wlabel = ({ study: "deep study", rev: "revision", exam: "exam prep", quick: "quick practice" })[workflow];
-  const dueCount = data.todayTasks.filter(t => !t.done).length;
-  const scheduledMin = data.todayTasks.reduce((acc, t) => acc + parseInt(t.est) || 0, 0);
 
-  // Subject names for "coming due" delta
-  const dueSubjNames = (() => {
-    const ids = [...new Set(data.todayTasks.filter(t => !t.done).map(t => t.subj))].slice(0, 3);
-    return ids.map(id => data.subjects.find(x => x.id === id)?.name || id).join(" · ") || "nothing due";
-  })();
+  const [todoItems, setTodoItems] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("ll-todo-v1") || "[]"); } catch { return []; }
+  });
+  useEffect(() => {
+    const refresh = () => {
+      try { setTodoItems(JSON.parse(localStorage.getItem("ll-todo-v1") || "[]")); } catch {}
+    };
+    window.addEventListener("ll-todo-changed", refresh);
+    return () => window.removeEventListener("ll-todo-changed", refresh);
+  }, []);
+  const dueCount = todoItems.filter(x => !x.done).length;
 
   return (
     <div style={{ padding: "28px 32px 60px", maxWidth: 1400, margin: "0 auto" }}>
@@ -196,23 +195,16 @@ function LiveDashboard({ data, setRoute, workflow, onAddSubject }) {
           </h1>
           <p style={{ color: "var(--ink-2)", fontSize: "var(--fs-15)", maxWidth: 620 }}>
             {dueCount > 0 ? (
-              <>
-                You have <b style={{ color: "var(--ink)" }}>{dueCount} active task{dueCount === 1 ? "" : "s"}</b> and{" "}
-                <b style={{ color: "var(--ink)" }}>{Math.floor(scheduledMin / 60)}h {scheduledMin % 60}m</b> of scheduled study.{" "}
-              </>
+              <>You have <b style={{ color: "var(--ink)" }}>{dueCount} open task{dueCount === 1 ? "" : "s"}</b> in your to-do list.{" "}</>
             ) : (
-              <>Nothing due today — a clean slate.{" "}</>
+              <>Nothing in your to-do list — a clean slate.{" "}</>
             )}
             Continuing in <span style={{ color: "var(--accent)", fontWeight: 500 }}>{wlabel}</span> mode.
           </p>
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          <Btn icon={Ic.Timer} variant="default">Start 25-min focus</Btn>
-          <Btn icon={Ic.Plus} variant="primary">New session</Btn>
-        </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 12, marginBottom: 22 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 22 }}>
         <StatCell
           kicker="Focus this week"
           big={analytics?.weekFocusLabel || "—"}
@@ -236,14 +228,12 @@ function LiveDashboard({ data, setRoute, workflow, onAddSubject }) {
         <StatCell
           kicker="Coming due"
           big={`${dueCount} item${dueCount === 1 ? "" : "s"}`}
-          delta={dueSubjNames}
+          delta={dueCount > 0 ? "from your to-do list" : "all clear"}
           deltaTone={dueCount > 0 ? "due" : "ok"}
         />
-        <LiveAICell />
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 16, marginBottom: 24 }}>
-        <RealtimeAnalysisCard now={now} aiActivity={data.aiActivity} isDemoMode={data.demo} />
+      <div style={{ marginBottom: 24, maxWidth: 440 }}>
         <FocusSessionCard workflow={workflow} />
       </div>
 
@@ -252,7 +242,6 @@ function LiveDashboard({ data, setRoute, workflow, onAddSubject }) {
         action={
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <span style={{ fontSize: "var(--fs-13)", color: "var(--ink-3)" }}>{data.subjects.length} active</span>
-            <Btn icon={Ic.Filter} variant="ghost">Sort</Btn>
             <Btn icon={Ic.Plus} onClick={onAddSubject}>Add subject</Btn>
           </div>
         }
@@ -262,207 +251,26 @@ function LiveDashboard({ data, setRoute, workflow, onAddSubject }) {
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 16 }}>
-        <Card padded={false}>
-          <div style={{
-            display: "flex", alignItems: "center", justifyContent: "space-between",
-            padding: "14px 18px", borderBottom: "1px solid var(--line)",
-          }}>
-            <div>
-              <div className="label-xs">Today · {now.getDate()} {FMT_DATE.format(now).split(" ")[2]}</div>
-              <div style={{ fontSize: "var(--fs-18)", fontWeight: 500, letterSpacing: "-0.01em" }}>Plan & tasks</div>
-            </div>
-            <div style={{ display: "flex", gap: 6 }}>
-              <Pill tone="accent">{data.todayTasks.length} tasks</Pill>
-              <Pill tone="due">{dueCount} due</Pill>
-            </div>
-          </div>
-          <TaskList tasks={data.todayTasks} subjects={data.subjects} />
-        </Card>
+        <TodoList />
 
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <Card padded={false}>
             <div style={{ padding: "14px 18px 8px" }}>
               <div className="label-xs">Focus this week</div>
-              <div style={{ fontSize: "var(--fs-18)", fontWeight: 500, letterSpacing: "-0.01em" }}>Hours by subject</div>
+              <div style={{ fontSize: "var(--fs-18)", fontWeight: 500, letterSpacing: "-0.01em" }}>Hours by day</div>
             </div>
-            <FocusChart weekFocus={data.weekFocus} />
-            <div style={{
-              display: "flex", flexWrap: "wrap", gap: 10, padding: "0 18px 16px",
-              fontSize: 11, color: "var(--ink-3)",
-            }}>
-              {data.subjects.slice(0, 6).map(s => (
-                <span key={s.id} data-subject={s.id} style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
-                  <span style={{ width: 8, height: 8, borderRadius: 2, background: "var(--s)" }} />
-                  {s.name}
-                </span>
-              ))}
-            </div>
+            <WeekFocusChart />
           </Card>
           <Card padded={false}>
             <div style={{ padding: "14px 18px 4px" }}>
               <div className="label-xs">Activity</div>
               <div style={{ fontSize: "var(--fs-18)", fontWeight: 500, letterSpacing: "-0.01em" }}>Recent</div>
             </div>
-            <ActivityStream activity={data.activity} subjects={data.subjects} />
+            <RealActivityStream />
           </Card>
         </div>
       </div>
     </div>
-  );
-}
-
-const AI_TYPE_META = {
-  upload:  { c: "var(--ink-2)",  l: "UPLOAD" },
-  embed:   { c: "var(--accent)", l: "INGEST" },
-  ask:     { c: "var(--ok)",     l: "ASK"    },
-  quiz:    { c: "var(--warn)",   l: "QUIZ"   },
-  summary: { c: "var(--ink-2)",  l: "SUM"    },
-  session: { c: "var(--accent)", l: "FOCUS"  },
-  // demo shapes
-  weak:    { c: "var(--due)",    l: "WEAK"   },
-  answer:  { c: "var(--ok)",     l: "ASK"    },
-};
-
-function RealtimeAnalysisCard({ now, aiActivity, isDemoMode }) {
-  const analytics = useAnalytics();
-
-  const header = (
-    <div style={{
-      display: "flex", alignItems: "center", justifyContent: "space-between",
-      padding: "14px 18px", borderBottom: "1px solid var(--line)",
-    }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <span style={{
-          width: 28, height: 28, borderRadius: 6,
-          background: "var(--accent-soft)", color: "var(--accent)",
-          display: "grid", placeItems: "center",
-        }}>
-          <span style={{ width: 14, height: 14 }}><Ic.Bot /></span>
-        </span>
-        <div>
-          <div className="label-xs">Real-time AI analysis</div>
-          <div style={{ fontSize: "var(--fs-18)", fontWeight: 500, letterSpacing: "-0.01em" }}>
-            {isDemoMode ? "Personalised — what the AI saw today" : "Live AI activity feed"}
-          </div>
-        </div>
-      </div>
-      <span style={{
-        display: "inline-flex", alignItems: "center", gap: 5,
-        fontSize: 10.5, color: "var(--ok)", fontWeight: 500,
-      }}>
-        <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--ok)",
-          animation: "ll-pulse-soft 1.4s infinite" }} />
-        live · streaming
-      </span>
-    </div>
-  );
-
-  // Demo mode: render the pre-baked demo events
-  if (isDemoMode && aiActivity?.length > 0) {
-    const fmtDemoRel = (mins) => {
-      const m = -mins;
-      if (m < 1) return "just now";
-      if (m < 60) return `${m}m ago`;
-      return `${Math.floor(m / 60)}h ago`;
-    };
-    return (
-      <Card padded={false}>
-        {header}
-        <div style={{ padding: "6px 0 4px" }}>
-          {aiActivity.map((a, i) => {
-            const m = AI_TYPE_META[a.kind] || { c: "var(--ink-3)", l: "AI" };
-            return (
-              <div key={i} data-subject={a.subj} style={{
-                display: "grid", gridTemplateColumns: "64px 1fr auto",
-                gap: 12, padding: "9px 18px", alignItems: "center",
-                borderTop: i === 0 ? "none" : "1px solid var(--line-soft)",
-              }}>
-                <span className="mono" style={{
-                  fontSize: 10, color: m.c, fontWeight: 600,
-                  padding: "1.5px 6px", borderRadius: 3,
-                  background: `color-mix(in oklch, ${m.c} 12%, transparent)`,
-                  width: "fit-content",
-                }}>{m.l}</span>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: "var(--fs-13)", color: "var(--ink)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.text}</div>
-                  <div style={{ fontSize: 11, color: "var(--ink-3)", marginTop: 1 }} className="mono">{a.meta}</div>
-                </div>
-                <span className="mono tabular" style={{ fontSize: 10.5, color: "var(--ink-3)" }}>{fmtDemoRel(a.t)}</span>
-              </div>
-            );
-          })}
-        </div>
-      </Card>
-    );
-  }
-
-  // Real mode: analytics events
-  const liveEvents = analytics?.aiEvents || [];
-  const fmtRel = (ts) => {
-    const secs = (Date.now() - ts) / 1000;
-    if (secs < 10) return "just now";
-    const m = Math.floor(secs / 60);
-    return m < 60 ? `${m}m ago` : `${Math.floor(m / 60)}h ago`;
-  };
-
-  return (
-    <Card padded={false}>
-      {header}
-      <div style={{ padding: "6px 0 4px" }}>
-        {liveEvents.length === 0 ? (
-          <div style={{
-            padding: "28px 18px", textAlign: "center",
-            display: "flex", flexDirection: "column", alignItems: "center", gap: 8,
-          }}>
-            <span style={{
-              width: 36, height: 36, borderRadius: 8,
-              background: "var(--surface-2)", color: "var(--ink-4)",
-              display: "grid", placeItems: "center",
-            }}><span style={{ width: 18, height: 18 }}><Ic.Bot /></span></span>
-            <div style={{ fontSize: "var(--fs-14)", color: "var(--ink-2)", fontWeight: 500 }}>No activity yet</div>
-            <div style={{ fontSize: 12, color: "var(--ink-3)", maxWidth: 280, lineHeight: 1.6 }}>
-              Complete a focus session, upload notes, or run a query — events will appear here in real time.
-            </div>
-          </div>
-        ) : (
-          liveEvents.map((a, i) => {
-            const m = AI_TYPE_META[a.type] || { c: "var(--ink-3)", l: (a.type || "AI").toUpperCase().slice(0, 6) };
-            const isProcessing = a.status === "processing";
-            return (
-              <div key={a.id || i} style={{
-                display: "grid", gridTemplateColumns: "64px 1fr auto",
-                gap: 12, padding: "9px 18px", alignItems: "center",
-                borderTop: i === 0 ? "none" : "1px solid var(--line-soft)",
-                background: i === 0 && isProcessing ? "color-mix(in oklch, var(--accent-soft) 40%, transparent)" : "transparent",
-                transition: "background 400ms",
-              }}>
-                <span className="mono" style={{
-                  fontSize: 10, color: m.c, fontWeight: 600,
-                  padding: "1.5px 6px", borderRadius: 3,
-                  background: `color-mix(in oklch, ${m.c} 12%, transparent)`,
-                  width: "fit-content", display: "flex", alignItems: "center", gap: 4,
-                }}>
-                  {isProcessing && i === 0 && (
-                    <span style={{ width: 5, height: 5, borderRadius: "50%", background: m.c,
-                      animation: "ll-pulse-soft 1.2s infinite", display: "inline-block" }} />
-                  )}
-                  {m.l}
-                </span>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: "var(--fs-13)", color: "var(--ink)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {a.label}
-                  </div>
-                  {a.subj && (
-                    <div style={{ fontSize: 11, color: "var(--ink-3)", marginTop: 1 }} className="mono">{a.subj}</div>
-                  )}
-                </div>
-                <span className="mono tabular" style={{ fontSize: 10.5, color: "var(--ink-3)" }}>{fmtRel(a.ts)}</span>
-              </div>
-            );
-          })
-        )}
-      </div>
-    </Card>
   );
 }
 
@@ -554,93 +362,6 @@ function FocusSessionCard({ workflow }) {
           </Btn>
           <Btn variant="ghost" onClick={reset}>Reset</Btn>
         </div>
-      </div>
-    </Card>
-  );
-}
-
-const AI_FOCUS_MSGS = [
-  "monitoring focus",
-  "analysing session",
-  "tracking progress",
-  "in focus mode",
-];
-
-function LiveAICell() {
-  const [tick, setTick] = useState(0);
-  const timer     = useTimer();
-  const analytics = useAnalytics();
-
-  useEffect(() => {
-    const id = setInterval(() => setTick(t => t + 1), 1200);
-    return () => clearInterval(id);
-  }, []);
-
-  const timerStatus = timer?.status || "idle";
-  const isRunning   = timerStatus === "running";
-  const isBreak     = timer?.isBreak;
-  const latestAI    = analytics?.latestAI;
-  const isRecentAI  = latestAI && (Date.now() - latestAI.ts < 15_000);
-  const isProcessing = isRecentAI && latestAI?.status === "processing";
-
-  const headline = (() => {
-    if (isRecentAI)                return latestAI.label;
-    if (timerStatus === "completed") return isBreak ? "break done ✓" : "session done ✓";
-    if (timerStatus === "running")   return isBreak ? "break mode" : AI_FOCUS_MSGS[tick % AI_FOCUS_MSGS.length];
-    if (timerStatus === "paused")    return "session paused";
-    return "AI standing by";
-  })();
-
-  const dotColor = isProcessing
-    ? "var(--warn)"
-    : isRunning && !isBreak ? "var(--accent)"
-    : isBreak ? "var(--ok)"
-    : "var(--accent)";
-
-  const bgGrad = isProcessing
-    ? "linear-gradient(135deg, var(--warn-soft), transparent)"
-    : isRunning && !isBreak ? "linear-gradient(135deg, var(--accent-soft), transparent)"
-    : isBreak ? "linear-gradient(135deg, var(--ok-soft), transparent)"
-    : "linear-gradient(135deg, var(--accent-soft), transparent)";
-
-  const subText = (() => {
-    if (isProcessing) return "processing…";
-    if (isRecentAI && latestAI?.status === "done") return "done ✓";
-    if (isRunning && !isBreak) return `session ${String((timer?.sessionCount || 0) + 1).padStart(2, "0")} · live`;
-    const wk = analytics?.weekFocusLabel;
-    return wk && wk !== "0m" ? `${wk} this week` : "start a session";
-  })();
-
-  const shouldAnimate = isProcessing || (isRunning && !isBreak);
-
-  return (
-    <Card style={{ padding: "14px 16px", background: bgGrad, transition: "background 400ms" }}>
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
-        <div className="label-xs" style={{ color: dotColor }}>
-          {isProcessing ? "AI · processing" : isRunning ? "AI · active" : "AI · live"}
-        </div>
-        <span style={{
-          width: 14, height: 14, color: dotColor,
-          animation: isProcessing ? "ll-pulse-soft 1.4s infinite" : "none",
-        }}><Ic.Bot /></span>
-      </div>
-      <div style={{
-        fontFamily: "var(--font-serif)", fontWeight: 400,
-        fontSize: 20, marginTop: 4, marginBottom: 6, letterSpacing: "-0.02em",
-        color: "var(--ink)", transition: "color 300ms",
-        overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-      }}>
-        {headline}
-      </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 4 }} className="mono">
-        {[0, 1, 2].map(i => (
-          <span key={i} style={{
-            width: 4, height: 4, borderRadius: "50%", background: dotColor,
-            opacity: shouldAnimate ? (((tick + i) % 3 === 0) ? 1 : 0.25) : 0.25,
-            transition: "opacity 240ms",
-          }} />
-        ))}
-        <span style={{ fontSize: 11, color: "var(--ink-3)", marginLeft: 6 }}>{subText}</span>
       </div>
     </Card>
   );
@@ -761,123 +482,167 @@ function SubjectCard({ s, onOpen }) {
   );
 }
 
-function TaskList({ tasks: initial, subjects }) {
-  const [tasks, setTasks] = useState(initial);
-  const toggle = id => setTasks(t => t.map(x => x.id === id ? { ...x, done: !x.done } : x));
+function TodoList() {
+  const LS_KEY = "ll-todo-v1";
+  const load = () => { try { return JSON.parse(localStorage.getItem(LS_KEY) || "[]"); } catch { return []; } };
+  const [items, setItems] = useState(load);
+  const [input, setInput] = useState("");
 
-  if (tasks.length === 0) {
-    return (
-      <div style={{ padding: "32px 18px", textAlign: "center", color: "var(--ink-3)" }}>
-        <div style={{ fontSize: "var(--fs-14)", marginBottom: 4 }}>No tasks yet.</div>
-        <div style={{ fontSize: 11.5 }}>Tasks you add to subjects will show up here.</div>
-      </div>
-    );
-  }
+  const save = (next) => {
+    setItems(next);
+    try {
+      localStorage.setItem(LS_KEY, JSON.stringify(next));
+      window.dispatchEvent(new CustomEvent("ll-todo-changed"));
+    } catch {}
+  };
+
+  const add = () => {
+    const t = input.trim();
+    if (!t) return;
+    save([...items, { id: Date.now(), text: t, done: false }]);
+    setInput("");
+  };
+
+  const toggle = (id) => save(items.map(x => x.id === id ? { ...x, done: !x.done } : x));
+  const remove = (id) => save(items.filter(x => x.id !== id));
+  const doneCount = items.filter(x => x.done).length;
+
+  const inputStyle = {
+    flex: 1, padding: "8px 11px",
+    border: "1px solid var(--line)", borderRadius: "var(--r)",
+    fontSize: "var(--fs-14)", background: "var(--surface)", color: "var(--ink)",
+  };
 
   return (
-    <div>
-      {tasks.map((t, i) => {
-        const s = subjects.find(x => x.id === t.subj);
-        const I = s ? SUBJECT_ICONS[t.subj] : null;
-        return (
-          <div key={t.id} data-subject={t.subj} style={{
-            display: "grid", gridTemplateColumns: "auto 1fr auto auto auto",
-            alignItems: "center", gap: 12, padding: "10px 18px",
-            borderTop: i === 0 ? "none" : "1px solid var(--line-soft)",
-            opacity: t.done ? 0.55 : 1,
-          }}>
-            <button onClick={() => toggle(t.id)} style={{
-              width: 16, height: 16, borderRadius: 4,
-              border: `1.5px solid ${t.done ? "var(--s)" : "var(--line-strong)"}`,
-              background: t.done ? "var(--s)" : "transparent",
-              display: "grid", placeItems: "center",
-              color: t.done ? "var(--on-accent)" : "transparent",
-            }}>
-              <span style={{ width: 10, height: 10 }}><Ic.Check /></span>
-            </button>
-            <div style={{ minWidth: 0 }}>
-              <div style={{
-                fontSize: "var(--fs-14)", fontWeight: 500,
-                textDecoration: t.done ? "line-through" : "none",
-                color: t.done ? "var(--ink-3)" : "var(--ink)",
-              }}>{t.title}</div>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11.5, color: "var(--ink-3)", marginTop: 2 }}>
-                {s && (
-                  <>
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: 4, color: "var(--s)" }}>
-                      <span style={{ width: 11, height: 11 }}>{I && <I />}</span>
-                      {s.name}
-                    </span>
-                    <span>·</span>
-                  </>
-                )}
-                <span>{t.kind}</span>
-              </div>
-            </div>
-            <span className="mono tabular" style={{ fontSize: 11, color: "var(--ink-3)" }}>{t.est}</span>
-            <span style={{ width: 18, display: "grid", placeItems: "center" }}>
-              {t.priority === "high" && <span title="High" style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--due)" }} />}
-              {t.priority === "med"  && <span title="Med"  style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--warn)" }} />}
-              {t.priority === "low"  && <span title="Low"  style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--ink-4)" }} />}
-            </span>
-            <span className="mono tabular" style={{ fontSize: 11, color: t.due === "23:59" ? "var(--due)" : "var(--ink-3)", minWidth: 36, textAlign: "right" }}>
-              {t.due}
-            </span>
-          </div>
-        );
-      })}
-      <button style={{
-        display: "flex", alignItems: "center", gap: 6, padding: "10px 18px",
-        color: "var(--ink-3)", fontSize: "var(--fs-13)", borderTop: "1px solid var(--line-soft)",
-        width: "100%",
+    <Card padded={false}>
+      <div style={{
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        padding: "14px 18px", borderBottom: "1px solid var(--line)",
       }}>
-        <span style={{ width: 13, height: 13 }}><Ic.Plus /></span>
-        Add task to today
-      </button>
-    </div>
+        <div>
+          <div className="label-xs">To-Do list</div>
+          <div style={{ fontSize: "var(--fs-18)", fontWeight: 500, letterSpacing: "-0.01em" }}>Tasks</div>
+        </div>
+        <div style={{ display: "flex", gap: 6 }}>
+          <Pill tone="accent">{items.length} total</Pill>
+          {doneCount > 0 && <Pill tone="ok">{doneCount} done</Pill>}
+        </div>
+      </div>
+
+      <div style={{ padding: "12px 18px", borderBottom: "1px solid var(--line-soft)", display: "flex", gap: 8 }}>
+        <input
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          onKeyDown={e => e.key === "Enter" && add()}
+          placeholder="Add a task and press Enter…"
+          style={inputStyle}
+        />
+        <Btn variant="primary" icon={Ic.Plus} onClick={add}>Add</Btn>
+      </div>
+
+      {items.length === 0 ? (
+        <div style={{ padding: "32px 18px", textAlign: "center", color: "var(--ink-3)" }}>
+          <div style={{ fontSize: "var(--fs-14)", marginBottom: 4 }}>No tasks yet.</div>
+          <div style={{ fontSize: 11.5 }}>Type a task above and press Enter or Add.</div>
+        </div>
+      ) : (
+        <div style={{ maxHeight: 320, overflowY: "auto" }}>
+          {items.map((item, i) => (
+            <div key={item.id} style={{
+              display: "flex", alignItems: "center", gap: 12, padding: "10px 18px",
+              borderTop: i === 0 ? "none" : "1px solid var(--line-soft)",
+              opacity: item.done ? 0.6 : 1, transition: "opacity 200ms",
+            }}>
+              <button onClick={() => toggle(item.id)} style={{
+                width: 16, height: 16, borderRadius: 4, flexShrink: 0,
+                border: `1.5px solid ${item.done ? "var(--accent)" : "var(--line-strong)"}`,
+                background: item.done ? "var(--accent)" : "transparent",
+                display: "grid", placeItems: "center",
+                color: item.done ? "white" : "transparent",
+              }}>
+                <span style={{ width: 10, height: 10 }}><Ic.Check /></span>
+              </button>
+              <div style={{
+                flex: 1, fontSize: "var(--fs-14)", fontWeight: 500,
+                textDecoration: item.done ? "line-through" : "none",
+                color: item.done ? "var(--ink-3)" : "var(--ink)",
+              }}>{item.text}</div>
+              <button onClick={() => remove(item.id)} style={{
+                width: 22, height: 22, borderRadius: "var(--r-sm)", color: "var(--ink-4)",
+                display: "grid", placeItems: "center", fontSize: 16, lineHeight: 1,
+              }}
+                onMouseEnter={e => e.currentTarget.style.color = "var(--due)"}
+                onMouseLeave={e => e.currentTarget.style.color = "var(--ink-4)"}
+              >×</button>
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
   );
 }
 
-function FocusChart({ weekFocus }) {
-  const max = 5;
-  const subs = ["math", "prog", "bio", "lit", "phys", "chem"];
-  const hasAny = weekFocus.some(d => subs.some(k => d[k] > 0));
+function WeekFocusChart() {
+  const analytics = useAnalytics();
+  const DAY_LABELS = ["M", "T", "W", "T", "F", "S", "S"];
+  const secs = analytics?.weekDailySecs || Array(7).fill(0);
+  const hours = secs.map(s => s / 3600);
+  const max = Math.max(...hours, 0.5);
+  const hasAny = hours.some(h => h > 0);
+
   if (!hasAny) {
     return (
       <div style={{ padding: "32px 18px", textAlign: "center", color: "var(--ink-3)", fontSize: 12 }}>
-        No focus sessions logged yet.
+        No focus sessions logged yet. Complete a timer session to see data here.
       </div>
     );
   }
   return (
     <div style={{ padding: "8px 18px 12px", display: "flex", alignItems: "flex-end", gap: 10, height: 132 }}>
-      {weekFocus.map((day, i) => {
-        const total = subs.reduce((acc, k) => acc + (day[k] || 0), 0);
-        return (
-          <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
-            <span className="mono tabular" style={{ fontSize: 10, color: "var(--ink-3)" }}>{total.toFixed(1)}h</span>
-            <div style={{
-              width: "100%", height: 88, display: "flex", flexDirection: "column-reverse",
-              borderRadius: 4, overflow: "hidden", background: "var(--surface-2)",
-            }}>
-              {subs.map(k => {
-                const v = day[k] || 0;
-                if (!v) return null;
-                return <div key={k} data-subject={k} style={{ height: `${(v / max) * 100}%`, background: "var(--s)" }} />;
-              })}
-            </div>
-            <span style={{ fontSize: 11, color: "var(--ink-2)", fontWeight: 500 }}>{day.d}</span>
+      {hours.map((h, i) => (
+        <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+          <span className="mono tabular" style={{ fontSize: 10, color: "var(--ink-3)" }}>
+            {h > 0 ? `${h.toFixed(1)}h` : ""}
+          </span>
+          <div style={{
+            width: "100%", height: 88, display: "flex", alignItems: "flex-end",
+            borderRadius: 4, overflow: "hidden", background: "var(--surface-2)",
+          }}>
+            {h > 0 && (
+              <div style={{ width: "100%", height: `${(h / max) * 100}%`, background: "var(--accent)", borderRadius: "2px 2px 0 0" }} />
+            )}
           </div>
-        );
-      })}
+          <span style={{ fontSize: 11, color: "var(--ink-2)", fontWeight: 500 }}>{DAY_LABELS[i]}</span>
+        </div>
+      ))}
     </div>
   );
 }
 
-const ACT_ICONS = { note: Ic.Note, quiz: Ic.Quiz, anno: Ic.Bookmark, video: Ic.Video, card: Ic.Card, essay: Ic.Quill };
+const REAL_ACT_META = {
+  session: { I: Ic.Timer,  bg: "var(--accent-soft)", c: "var(--accent)" },
+  upload:  { I: Ic.Upload, bg: "var(--surface-2)",   c: "var(--ink-2)" },
+  embed:   { I: Ic.Bot,    bg: "var(--accent-soft)", c: "var(--accent)" },
+  ask:     { I: Ic.Search, bg: "var(--ok-soft)",     c: "var(--ok)"    },
+  summary: { I: Ic.Note,   bg: "var(--surface-2)",   c: "var(--ink-2)" },
+  quiz:    { I: Ic.Quiz,   bg: "var(--warn-soft)",   c: "var(--warn)"  },
+};
 
-function ActivityStream({ activity, subjects }) {
-  if (!activity || activity.length === 0) {
+function RealActivityStream() {
+  const analytics = useAnalytics();
+  const events = analytics?.aiEvents || [];
+
+  const fmtTime = (ts) => {
+    const secs = (Date.now() - ts) / 1000;
+    if (secs < 60) return "just now";
+    const m = Math.floor(secs / 60);
+    if (m < 60) return `${m}m ago`;
+    const h = Math.floor(m / 60);
+    if (h < 24) return `${h}h ago`;
+    return `${Math.floor(h / 24)}d ago`;
+  };
+
+  if (events.length === 0) {
     return (
       <div style={{ padding: "24px 18px", textAlign: "center", color: "var(--ink-3)", fontSize: 12 }}>
         Activity will appear here as you study.
@@ -886,23 +651,23 @@ function ActivityStream({ activity, subjects }) {
   }
   return (
     <div style={{ padding: "4px 0 10px" }}>
-      {activity.map((a, i) => {
-        const s = subjects.find(x => x.id === a.subj);
-        const I = ACT_ICONS[a.icon];
+      {events.slice(0, 8).map((a, i) => {
+        const m = REAL_ACT_META[a.type] || { I: Ic.Bot, bg: "var(--surface-2)", c: "var(--ink-3)" };
+        const IconComp = m.I;
         return (
-          <div key={i} data-subject={a.subj} style={{
-            display: "flex", alignItems: "center", gap: 12, padding: "8px 18px",
-          }}>
+          <div key={a.id || i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 18px" }}>
             <span style={{
               width: 24, height: 24, borderRadius: 6,
-              background: "var(--s-soft)", color: "var(--s)",
+              background: m.bg, color: m.c,
               display: "grid", placeItems: "center", flexShrink: 0,
-            }}><span style={{ width: 13, height: 13 }}>{I && <I />}</span></span>
-            <div style={{ fontSize: "var(--fs-13)", color: "var(--ink-2)", flex: 1, minWidth: 0,
-              overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              {a.text}
-            </div>
-            <span className="mono" style={{ fontSize: 10.5, color: "var(--ink-3)" }}>{a.t}</span>
+            }}><span style={{ width: 13, height: 13 }}><IconComp /></span></span>
+            <div style={{
+              fontSize: "var(--fs-13)", color: "var(--ink-2)", flex: 1, minWidth: 0,
+              overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+            }}>{a.label}</div>
+            <span className="mono" style={{ fontSize: 10.5, color: "var(--ink-3)", flexShrink: 0 }}>
+              {fmtTime(a.ts)}
+            </span>
           </div>
         );
       })}

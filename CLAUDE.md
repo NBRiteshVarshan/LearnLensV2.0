@@ -433,3 +433,36 @@ workspace. Each subject type has a distinct view flavour:
   - **Add menu integration**: "Reading" entry replaced with "Resource" (`id: "resource"`) — clicking it navigates to the Resources tab and closes the menu instead of opening an inline form; each workspace intercepts `onAdd({ kind: "resource" })` via a local `handleAdd` and calls `setTab("resources")`
   - **Resources tab added to all 5 workspace types**: MathWorkspace, ProgWorkspace, BioWorkspace, LitWorkspace each get a "Resources" tab + `{tab === "resources" ? <ResourcesPanel subjectId={s.id} /> : <>{existing content}</>}` conditional; GenericSubject renders `<ResourcesPanel>` for the existing "resources" tab (replaces old generic empty state placeholder)
   - **AI pipeline untouched**: resources stored locally are never indexed, embedded, or sent to RAG; `emitAIActivity` not called from resource flows; no backend files modified
+
+### Session — 2026-07-07
+- **UI polish — removed non-functional buttons and dead chrome (`Shell.jsx`, `Views.jsx`, `Workspaces.jsx`, `Dashboard.jsx`):**
+  - Removed notification bell button from `TopBar` in `Shell.jsx`
+  - Removed non-clickable Add / Start session / Pin buttons from `SubjectHeader` in `Workspaces.jsx`
+  - Removed no-op navigation arrows and "Today" button from Calendar header in `Views.jsx`
+  - Removed "Compose" / "Invite friends" / "Message" buttons from Inbox in `Views.jsx`
+  - Removed "Sort" ghost button and "New session" button from `LiveDashboard` header in `Dashboard.jsx`
+- **Calendar → Subject header session sync (`Workspaces.jsx`):**
+  - `useNextCalSession(subjectId)` hook: reads `ll-calendar-events-v1` localStorage, walks the current Mon–Sun week, finds the next future event for the subject, returns a human-readable string (`"Today 2:00 PM"` / `"Wed 10:00 AM"`)
+  - `SubjectHeader` metadata line now shows `Next: <datetime>` from calendar when available, falls back to the static `s.session` string
+- **Resources PDF Read button fixed (`Workspaces.jsx`):**
+  - `openItem()` converts base64 dataUrl → `Uint8Array` → `Blob` → `URL.createObjectURL` → opens in new tab; revokes the object URL after 30 s; falls back to direct `window.open(dataUrl)` on decode error
+- **Dashboard replaced static widgets with live data (`Dashboard.jsx`):**
+  - Removed `LiveAICell`, `RealtimeAnalysisCard`, `FocusChart`, `ActivityStream` (all reading demo/empty data)
+  - Added `TodoList` component: `ll-todo-v1` localStorage, add/toggle/delete, dispatches `ll-todo-changed` CustomEvent on every mutation
+  - `LiveDashboard` reads `ll-todo-v1` reactively (listens to `ll-todo-changed`) to drive the "Coming due" stat cell
+  - Added `WeekFocusChart`: reads `analytics.weekDailySecs` (real timer sessions) — 7-column bar chart with accent-colour bars; empty state when no sessions logged
+  - Added `RealActivityStream`: reads `analytics.aiEvents` (real AI events from `useStudyAnalytics`) — shows up to 8 most recent events with relative timestamps; empty state with instructions
+  - `LiveDashboard` right column now renders `<WeekFocusChart />` ("Hours by day") and `<RealActivityStream />` instead of old demo-data components
+- **Resources PDFs auto-indexed into backend Qdrant (`Workspaces.jsx`):**
+  - `addPDF` in `useSubjectResources` now runs a non-blocking async flow after the FileReader saves to localStorage: `POST /api/upload` → `POST /api/ingest` → updates resource record with `pdfId` and `indexed: true`
+  - `emitAIActivity` emitted for upload + embed events so the activity stream updates
+  - ResourcesPanel PDF row shows `· AI indexed` (green) once indexed, `· indexing…` (grey) while in progress
+  - Failure is non-fatal — PDF is still saved locally and readable even if backend is offline
+- **Fixed AI Tools upload 404 error (`AITools.jsx`):**
+  - `const API = import.meta.env.VITE_API_URL` was `undefined` at runtime → all fetch URLs became `"undefined/api/..."` → HTTP 404; fixed to `const API = ""` (relative paths, proxied via Vite in dev, direct in prod)
+  - Removed stale `console.log("API =", API)` debug line
+- **Summary panel renders Markdown (`AITools.jsx`):**
+  - Installed `react-markdown@10.1.0` (new dependency in `frontend/package.json`)
+  - `SummaryPanel` replaced `<div whiteSpace: pre-wrap>{generated.text}</div>` with `<ReactMarkdown components={{...}}>` — all elements (p, strong, em, h1–h3, ul, ol, li, code, pre) styled using existing CSS variables (`var(--font-serif)`, `var(--ink)`, `var(--surface-2)`, etc.)
+  - `**Bold text:**` headings from the LLM now render as bold without visible asterisks; numbered lists, bullet lists, and code blocks also render correctly
+  - Copy button and raw `generated.text` value unchanged — copied text remains original Markdown

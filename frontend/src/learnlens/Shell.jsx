@@ -487,16 +487,6 @@ function TopBar({ crumbs, right, theme, setTheme, onCmd }) {
         <span style={{ width: 15, height: 15 }}>{theme === "light" ? <Ic.Moon /> : <Ic.Sun />}</span>
       </button>
 
-      <button style={{
-        width: 30, height: 30, display: "grid", placeItems: "center",
-        borderRadius: "var(--r-sm)", color: "var(--ink-2)", position: "relative",
-      }}>
-        <span style={{ width: 15, height: 15 }}><Ic.Bell /></span>
-        <span style={{
-          position: "absolute", top: 6, right: 6, width: 6, height: 6,
-          borderRadius: "50%", background: "var(--due)",
-        }} />
-      </button>
     </header>
   );
 }

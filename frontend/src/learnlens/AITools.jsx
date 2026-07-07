@@ -1,7 +1,7 @@
-const API = import.meta.env.VITE_API_URL;
-console.log("API =", API)
+const API = "";
 
 import React, { useState, useRef, useEffect } from "react";
+import ReactMarkdown from "react-markdown";
 import { Card, Pill, Btn, Ic } from "./Shell.jsx";
 import { emitAIActivity, useAnalytics } from "./useStudyAnalytics.jsx";
 
@@ -542,11 +542,22 @@ function SummaryPanel({ pdfs, selected }) {
               </div>
               <Btn variant="ghost">Copy</Btn>
             </div>
-            <div className="serif" style={{
-              fontFamily: "var(--font-serif)", fontSize: 15, lineHeight: 1.7,
-              color: "var(--ink)", whiteSpace: "pre-wrap", textWrap: "pretty",
-            }}>
-              {generated.text}
+            <div className="serif" style={{ fontFamily: "var(--font-serif)", fontSize: 15, color: "var(--ink)" }}>
+              <ReactMarkdown components={{
+                p:      ({ children }) => <p style={{ lineHeight: 1.7, marginBottom: 10, textWrap: "pretty" }}>{children}</p>,
+                strong: ({ children }) => <strong style={{ fontWeight: 600, color: "var(--ink)" }}>{children}</strong>,
+                em:     ({ children }) => <em style={{ fontStyle: "italic" }}>{children}</em>,
+                h1:     ({ children }) => <h2 style={{ fontFamily: "var(--font-serif)", fontSize: 17, fontWeight: 600, margin: "16px 0 6px", color: "var(--ink)" }}>{children}</h2>,
+                h2:     ({ children }) => <h3 style={{ fontFamily: "var(--font-serif)", fontSize: 16, fontWeight: 600, margin: "14px 0 5px", color: "var(--ink)" }}>{children}</h3>,
+                h3:     ({ children }) => <h4 style={{ fontFamily: "var(--font-serif)", fontSize: 15, fontWeight: 600, margin: "12px 0 4px", color: "var(--ink)" }}>{children}</h4>,
+                ul:     ({ children }) => <ul style={{ paddingLeft: 20, marginBottom: 10, lineHeight: 1.7 }}>{children}</ul>,
+                ol:     ({ children }) => <ol style={{ paddingLeft: 20, marginBottom: 10, lineHeight: 1.7 }}>{children}</ol>,
+                li:     ({ children }) => <li style={{ marginBottom: 3 }}>{children}</li>,
+                code:   ({ children }) => <code style={{ fontFamily: "var(--font-mono)", fontSize: 13, padding: "1px 5px", borderRadius: 3, background: "var(--surface-2)" }}>{children}</code>,
+                pre:    ({ children }) => <pre style={{ fontFamily: "var(--font-mono)", fontSize: 12.5, padding: "10px 14px", borderRadius: 6, background: "var(--surface-2)", overflowX: "auto", marginBottom: 10 }}>{children}</pre>,
+              }}>
+                {generated.text}
+              </ReactMarkdown>
             </div>
           </div>
         )}

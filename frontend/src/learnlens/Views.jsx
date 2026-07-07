@@ -83,9 +83,6 @@ function Calendar_View() {
           </h1>
         </div>
         <div style={{ display: "flex", gap: 6 }}>
-          <Btn variant="ghost">‹</Btn>
-          <Btn variant="default">Today</Btn>
-          <Btn variant="ghost">›</Btn>
           <Btn icon={Ic.Plus} variant="primary" onClick={() => setComposer({ day: today.getDay() === 0 ? 6 : today.getDay() - 1, hour: 14 })}>
             Block time
           </Btn>
@@ -392,9 +389,6 @@ function Inbox() {
         <InboxTab id="messages" active={tab === "messages"} onClick={() => setTab("messages")} icon={Ic.Inbox} label="Messages" count={d.inbox.length} />
         <InboxTab id="friends"  active={tab === "friends"}  onClick={() => setTab("friends")}  icon={Ic.Users} label="Friends"  count={d.friends.length} />
         <div style={{ flex: 1 }} />
-        {tab === "messages"
-          ? <Btn icon={Ic.Plus} variant="ghost">Compose</Btn>
-          : <Btn icon={Ic.Plus} variant="primary">Invite friends</Btn>}
       </div>
 
       {tab === "messages" ? <MessagesTab inbox={d.inbox} subjects={d.subjects} /> : <FriendsTab d={d} />}
@@ -579,9 +573,6 @@ function FriendRow({ f, subjects, first }) {
           <span>·</span>
           <span className="mono tabular">{f.lastSeen}</span>
         </div>
-      </div>
-      <div style={{ display: "flex", gap: 6 }}>
-        <Btn variant="ghost" icon={Ic.Send}>Message</Btn>
       </div>
     </div>
   );
