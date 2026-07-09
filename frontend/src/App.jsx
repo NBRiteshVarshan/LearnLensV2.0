@@ -279,7 +279,6 @@ const deleteSubject = (id) => {
               { value: "study", label: "Deep study — reading-focused" },
               { value: "rev",   label: "Revision — recall & summaries" },
               { value: "exam",  label: "Exam prep — PYQs & timers" },
-              { value: "quick", label: "Quick practice — 10-min sprints" },
             ]} />
           <TweakToggle label="Show workflow chrome" value={t.showWorkflowChrome}
             onChange={v => setTweak("showWorkflowChrome", v)} />

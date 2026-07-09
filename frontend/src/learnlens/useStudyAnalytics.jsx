@@ -204,8 +204,12 @@ export function AnalyticsProvider({ children }) {
     }]);
   }
 
+  const weekSessionCount = thisWkSessions.length;
+
   const value = {
+    sessions, recallEvts,
     weekFocusSecs, weekFocusLabel, weekDeltaLabel, weekDeltaTone, weekDailySecs,
+    weekSessionCount,
     streak, longestStreak,
     recallAvg, recallTrend, recallTone,
     aiEvents, latestAI,

@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useAppData } from "./data.js";
 import { Card, Pill, Btn, SectionTitle, Ic, SUBJECT_ICONS } from "./Shell.jsx";
+import { useAnalytics } from "./useStudyAnalytics.jsx";
 
 // ── Generic empty state ────────────────────────────────────────────────────
 function EmptyState({ icon: I, title, hint, cta, onCta }) {
@@ -45,7 +46,7 @@ function Calendar_View() {
   const dates = Array.from({ length: 7 }, (_, i) => {
     const dt = new Date(monday); dt.setDate(monday.getDate() + i); return dt;
   });
-  const hours = Array.from({ length: 13 }, (_, i) => i + 8);
+  const hours = Array.from({ length: 24 }, (_, i) => i);
 
   const [events, setEvents] = useState(() => loadCalEvents(d.calEvents));
   const [composer, setComposer] = useState(null);
@@ -167,8 +168,8 @@ function Calendar_View() {
                     />
                   );
                 })}
-                {nowMins != null && nowMins >= 8 && nowMins < 21 && (
-                  <div style={{ position: "absolute", left: 0, right: 0, top: ((nowMins - 8) * 44), height: 1, background: "var(--accent)", zIndex: 5, pointerEvents: "none" }}>
+                {nowMins != null && (
+                  <div style={{ position: "absolute", left: 0, right: 0, top: (nowMins * 44), height: 1, background: "var(--accent)", zIndex: 5, pointerEvents: "none" }}>
                     <span style={{ position: "absolute", left: -4, top: -4, width: 8, height: 8, borderRadius: "50%", background: "var(--accent)" }} />
                   </div>
                 )}
@@ -181,7 +182,7 @@ function Calendar_View() {
                       onClick={e => { e.stopPropagation(); setSelected(isSel ? null : selKey); }}
                       style={{
                         position: "absolute",
-                        top: (ev.h - 8) * 44 + 2,
+                        top: ev.h * 44 + 2,
                         height: Math.max(ev.l * 44 - 4, 20),
                         left: 4, right: 4,
                         background: "var(--s-soft)",
@@ -269,18 +270,15 @@ const selectStyle = {
 // ═══════════════════════════════════════════════════════════════════════════
 // Analytics — empty state when no data
 // ═══════════════════════════════════════════════════════════════════════════
+const ANALYTICS_DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
 function Analytics() {
   const d = useAppData();
-  const recall = [
-    { s: "math", v: 89, trend: +4 },
-    { s: "prog", v: 91, trend: +2 },
-    { s: "bio",  v: 71, trend: -3 },
-    { s: "lit",  v: 82, trend: +1 },
-    { s: "phys", v: 64, trend: -6 },
-    { s: "chem", v: 70, trend: +5 },
-  ];
+  const analytics = useAnalytics();
 
-  if (!d.demo && d.subjects.length === 0) {
+  const hasData = analytics.sessions.length > 0 || analytics.recallEvts.length > 0;
+
+  if (!d.demo && d.subjects.length === 0 && !hasData) {
     return (
       <div style={{ padding: "28px 32px 60px", maxWidth: 900, margin: "0 auto" }}>
         <div style={{ marginBottom: 22 }}>
@@ -298,6 +296,23 @@ function Analytics() {
     );
   }
 
+  // Per-subject recall from real quiz events
+  const subjRecall = d.subjects.map(s => {
+    const evts = analytics.recallEvts.filter(e => e.subj === s.id);
+    if (evts.length === 0) return null;
+    const avg = Math.round(evts.reduce((a, e) => a + e.score, 0) / evts.length);
+    const half = Math.ceil(evts.length / 2);
+    let trend = 0;
+    if (evts.length >= 2) {
+      const rAvg = evts.slice(0, half).reduce((a, e) => a + e.score, 0) / half;
+      const oAvg = evts.slice(half).reduce((a, e) => a + e.score, 0) / (evts.length - half);
+      trend = Math.round(rAvg - oAvg);
+    }
+    return { s, avg, trend };
+  }).filter(Boolean);
+
+  const maxDaySecs = Math.max(...analytics.weekDailySecs, 1);
+
   return (
     <div style={{ padding: "28px 32px 60px", maxWidth: 1400, margin: "0 auto" }}>
       <div style={{ marginBottom: 22 }}>
@@ -308,58 +323,90 @@ function Analytics() {
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, marginBottom: 22 }}>
-        <Card><div className="label-xs" style={{ marginBottom: 6 }}>Hours · this term</div><div style={{ fontFamily: "var(--font-serif)", fontSize: 32 }} className="tabular">217h</div><div style={{ fontSize: 11, color: "var(--ok)" }}>+12% vs last term</div></Card>
-        <Card><div className="label-xs" style={{ marginBottom: 6 }}>Notes written</div><div style={{ fontFamily: "var(--font-serif)", fontSize: 32 }} className="tabular">38.4k</div><div style={{ fontSize: 11, color: "var(--ink-3)" }}>words across 6 subjects</div></Card>
-        <Card><div className="label-xs" style={{ marginBottom: 6 }}>Cards reviewed</div><div style={{ fontFamily: "var(--font-serif)", fontSize: 32 }} className="tabular">2,481</div><div style={{ fontSize: 11, color: "var(--ok)" }}>82% accuracy</div></Card>
-        <Card><div className="label-xs" style={{ marginBottom: 6 }}>Longest focus</div><div style={{ fontFamily: "var(--font-serif)", fontSize: 32 }} className="tabular">2h 14m</div><div style={{ fontSize: 11, color: "var(--ink-3)" }}>Tue · Programming</div></Card>
+        <Card>
+          <div className="label-xs" style={{ marginBottom: 6 }}>Focus · this week</div>
+          <div style={{ fontFamily: "var(--font-serif)", fontSize: 32 }} className="tabular">{analytics.weekFocusLabel}</div>
+          <div style={{ fontSize: 11, color: `var(--${analytics.weekDeltaTone})` }}>{analytics.weekDeltaLabel}</div>
+        </Card>
+        <Card>
+          <div className="label-xs" style={{ marginBottom: 6 }}>Sessions · all time</div>
+          <div style={{ fontFamily: "var(--font-serif)", fontSize: 32 }} className="tabular">{analytics.sessions.length}</div>
+          <div style={{ fontSize: 11, color: "var(--ink-3)" }}>{analytics.weekSessionCount} this week</div>
+        </Card>
+        <Card>
+          <div className="label-xs" style={{ marginBottom: 6 }}>Quiz recall (7d)</div>
+          <div style={{ fontFamily: "var(--font-serif)", fontSize: 32 }} className="tabular">
+            {analytics.recallAvg !== null ? `${analytics.recallAvg}%` : "—"}
+          </div>
+          <div style={{ fontSize: 11, color: `var(--${analytics.recallTone})` }}>{analytics.recallTrend}</div>
+        </Card>
+        <Card>
+          <div className="label-xs" style={{ marginBottom: 6 }}>Day streak</div>
+          <div style={{ fontFamily: "var(--font-serif)", fontSize: 32 }} className="tabular">{analytics.streak}d</div>
+          <div style={{ fontSize: 11, color: "var(--ink-3)" }}>best: {analytics.longestStreak}d</div>
+        </Card>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 16 }}>
         <Card padded={false}>
           <div style={{ padding: "14px 18px", borderBottom: "1px solid var(--line)" }}>
-            <div className="label-xs">Term focus distribution</div>
-            <div style={{ fontSize: "var(--fs-18)", fontWeight: 500, letterSpacing: "-0.01em" }}>Hours per subject</div>
+            <div className="label-xs">Weekly focus distribution</div>
+            <div style={{ fontSize: "var(--fs-18)", fontWeight: 500, letterSpacing: "-0.01em" }}>Minutes by day</div>
           </div>
-          <div style={{ padding: "18px 20px", display: "flex", flexDirection: "column", gap: 12 }}>
-            {d.subjects.map(s => {
-              const pct = (s.hours / 60) * 100;
-              const I = SUBJECT_ICONS[s.id];
-              return (
-                <div key={s.id} data-subject={s.id} style={{ display: "grid", gridTemplateColumns: "150px 1fr 60px", gap: 12, alignItems: "center" }}>
-                  <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: "var(--fs-13)" }}>
-                    <span style={{ width: 12, height: 12, color: "var(--s)" }}>{I && <I />}</span>{s.name}
-                  </span>
-                  <div style={{ height: 8, background: "var(--surface-2)", borderRadius: 4, overflow: "hidden" }}>
-                    <div style={{ width: `${pct}%`, height: "100%", background: "var(--s)" }} />
+          {analytics.weekDailySecs.every(v => v === 0) ? (
+            <div style={{ padding: "40px 24px", textAlign: "center", color: "var(--ink-3)", fontSize: "var(--fs-13)", lineHeight: 1.6 }}>
+              No focus sessions this week yet.<br />Start the timer to see your daily breakdown.
+            </div>
+          ) : (
+            <div style={{ padding: "18px 20px", display: "flex", flexDirection: "column", gap: 12 }}>
+              {analytics.weekDailySecs.map((secs, i) => {
+                const mins = Math.floor(secs / 60);
+                const pct = (secs / maxDaySecs) * 100;
+                return (
+                  <div key={i} style={{ display: "grid", gridTemplateColumns: "40px 1fr 52px", gap: 12, alignItems: "center" }}>
+                    <span style={{ fontSize: "var(--fs-13)", color: pct > 0 ? "var(--ink)" : "var(--ink-4)" }}>{ANALYTICS_DAY_LABELS[i]}</span>
+                    <div style={{ height: 8, background: "var(--surface-2)", borderRadius: 4, overflow: "hidden" }}>
+                      <div style={{ width: `${pct}%`, height: "100%", background: "var(--accent)", borderRadius: 4, transition: "width 0.4s ease" }} />
+                    </div>
+                    <span className="mono tabular" style={{ fontSize: 11.5, color: "var(--ink-2)", textAlign: "right" }}>
+                      {mins > 0 ? `${mins}m` : "—"}
+                    </span>
                   </div>
-                  <span className="mono tabular" style={{ fontSize: 11.5, color: "var(--ink-2)", textAlign: "right" }}>{s.hours}h</span>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          )}
         </Card>
 
         <Card padded={false}>
           <div style={{ padding: "14px 18px", borderBottom: "1px solid var(--line)" }}>
-            <div className="label-xs">Spaced repetition recall</div>
-            <div style={{ fontSize: "var(--fs-18)", fontWeight: 500, letterSpacing: "-0.01em" }}>7-day average</div>
+            <div className="label-xs">Quiz performance per subject</div>
+            <div style={{ fontSize: "var(--fs-18)", fontWeight: 500, letterSpacing: "-0.01em" }}>Recall average</div>
           </div>
-          <div style={{ padding: "14px 18px", display: "flex", flexDirection: "column", gap: 10 }}>
-            {recall.filter(r => d.subjects.find(s => s.id === r.s)).map(r => {
-              const subj = d.subjects.find(s => s.id === r.s);
-              return (
-                <div key={r.s} data-subject={r.s} style={{ display: "grid", gridTemplateColumns: "100px 1fr auto", gap: 10, alignItems: "center" }}>
-                  <span style={{ fontSize: "var(--fs-13)" }}>{subj.name}</span>
-                  <div style={{ height: 6, background: "var(--surface-2)", borderRadius: 3, overflow: "hidden" }}>
-                    <div style={{ width: `${r.v}%`, height: "100%", background: "var(--s)" }} />
+          {subjRecall.length === 0 ? (
+            <div style={{ padding: "40px 24px", textAlign: "center", color: "var(--ink-3)", fontSize: "var(--fs-13)", lineHeight: 1.6 }}>
+              No quiz results yet.<br />Take a quiz in any subject to see recall data.
+            </div>
+          ) : (
+            <div style={{ padding: "14px 18px", display: "flex", flexDirection: "column", gap: 10 }}>
+              {subjRecall.map(({ s, avg, trend }) => {
+                const I = SUBJECT_ICONS[s.id] || (s.icon && Ic[s.icon]);
+                return (
+                  <div key={s.id} data-subject={s.id} style={{ display: "grid", gridTemplateColumns: "110px 1fr auto", gap: 10, alignItems: "center" }}>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: "var(--fs-13)" }}>
+                      <span style={{ width: 12, height: 12, color: "var(--s)" }}>{I && <I />}</span>{s.name}
+                    </span>
+                    <div style={{ height: 6, background: "var(--surface-2)", borderRadius: 3, overflow: "hidden" }}>
+                      <div style={{ width: `${avg}%`, height: "100%", background: "var(--s)" }} />
+                    </div>
+                    <span className="mono tabular" style={{ fontSize: 11.5, color: trend > 0 ? "var(--ok)" : trend < 0 ? "var(--due)" : "var(--ink-3)" }}>
+                      {avg}%{trend !== 0 ? ` ${trend > 0 ? "↑" : "↓"}${Math.abs(trend)}` : ""}
+                    </span>
                   </div>
-                  <span className="mono tabular" style={{ fontSize: 11.5, color: r.trend > 0 ? "var(--ok)" : "var(--due)" }}>
-                    {r.v}%  {r.trend > 0 ? "↑" : "↓"}{Math.abs(r.trend)}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          )}
         </Card>
       </div>
     </div>

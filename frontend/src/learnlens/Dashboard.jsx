@@ -153,7 +153,7 @@ function LiveDashboard({ data, setRoute, workflow, onAddSubject }) {
   const now = useNow(1000);
   const analytics = useAnalytics();
   const u = data.user;
-  const wlabel = ({ study: "deep study", rev: "revision", exam: "exam prep", quick: "quick practice" })[workflow];
+  const wlabel = ({ study: "deep study", rev: "revision", exam: "exam prep" })[workflow] || "deep study";
 
   const [todoItems, setTodoItems] = useState(() => {
     try { return JSON.parse(localStorage.getItem("ll-todo-v1") || "[]"); } catch { return []; }

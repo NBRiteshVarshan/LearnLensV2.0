@@ -182,21 +182,6 @@ function Sidebar({ route, setRoute, subjects, workflow, setWorkflow, user, onAdd
         </button>
       </div>
 
-      {showLabels && (
-        <div style={{ padding: "0 10px 6px" }}>
-          <div style={{
-            display: "flex", alignItems: "center", gap: 6,
-            padding: "6px 10px", borderRadius: "var(--r)",
-            background: "var(--surface)", border: "1px solid var(--line)",
-            color: "var(--ink-3)", fontSize: "var(--fs-13)",
-          }}>
-            <span style={{ width: 14, height: 14 }}><Ic.Search /></span>
-            <span style={{ flex: 1 }}>Jump to…</span>
-            <span className="mono" style={{ fontSize: 10, padding: "1px 5px", border: "1px solid var(--line)", borderRadius: 3 }}>⌘K</span>
-          </div>
-        </div>
-      )}
-
       <nav style={{ padding: showLabels ? "8px 10px" : "8px 4px", display: "flex", flexDirection: "column", gap: 1 }}>
         <NavItem id="dashboard" icon={Ic.Home}  label="Today" />
         <NavItem id="calendar"  icon={Ic.Cal}   label="Calendar" />
@@ -403,7 +388,6 @@ const WORKFLOWS = [
   { id: "study",   label: "Deep study",     hint: "Reading focus, longer sessions" },
   { id: "rev",     label: "Revision",       hint: "Recall, summaries, spaced reps" },
   { id: "exam",    label: "Exam prep",      hint: "Timer, PYQs, weak-area drills" },
-  { id: "quick",   label: "Quick practice", hint: "10-min sprints" },
 ];
 
 function WorkflowSwitch({ value, onChange, collapsed }) {

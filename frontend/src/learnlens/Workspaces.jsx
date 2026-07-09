@@ -1379,7 +1379,6 @@ function GenericSubject({ s, recent, onAdd }) {
   const handleAdd = (item) => { if (item.kind === "resource") setTab("resources"); else onAdd(item); };
   const tabs = [
     { id: "notes",     label: "Notes",     count: notes.length || undefined },
-    { id: "practice",  label: "Practice" },
     { id: "resources", label: "Resources" },
   ];
   const colorVars = !SUBJECT_ICONS[s.id] ? getCustomColorVars(s.color) : {};
