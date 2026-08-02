@@ -55,6 +55,8 @@ if not GROQ_API_KEY:
 # GROQ CLIENT
 # =========================================================
 
+QDRANT_URL = os.getenv("QDRANT_URL")
+QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
 groq_client = Groq(api_key=GROQ_API_KEY)
 LLM_MODEL = "llama-3.3-70b-versatile"
 
@@ -111,32 +113,26 @@ def save_pdf_store():
 async def lifespan(app: FastAPI):
     global qdrant, embedding_model
 
-    # Remove stale lock file left by a previously crashed process
-
-    UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
-
     qdrant = QdrantClient(
-        url=os.getenv("QDRANT_URL"),
-        api_key=os.getenv("QDRANT_API_KEY")
+        url= QDRANT_URL,
+        api_key= QDRANT_API_KEY
     )
+
     existing = [c.name for c in qdrant.get_collections().collections]
+
     if COLLECTION_NAME not in existing:
         qdrant.create_collection(
             collection_name=COLLECTION_NAME,
-            vectors_config=VectorParams(size=384, distance=Distance.COSINE),
+            vectors_config=VectorParams(
+                size=384,
+                distance=Distance.COSINE
+            ),
         )
-        print(f"Created Qdrant collection: {COLLECTION_NAME}")
-    qdrant.create_payload_index(
-        collection_name=COLLECTION_NAME,
-        field_name="pdf_id",
-        field_schema=PayloadSchemaType.KEYWORD
-    )
 
-    print("Created payload index for pdf_id")
     print("Loading embedding model...")
-    embedding_model = SentenceTransformer("all-MiniLM-L6-v2", device="cpu")
+    embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
+    print("Embedding model loaded")
 
-    load_pdf_store()
     yield
     qdrant.close()
 
@@ -198,13 +194,36 @@ def extract_pages(path: str) -> List[dict]:
     try:
         doc = fitz.open(path)
         pages = []
+
+        print("=" * 60)
+        print(f"PDF opened successfully")
+        print(f"Total pages: {len(doc)}")
+        print("=" * 60)
+
         for i in range(len(doc)):
-            text = clean_text(doc[i].get_text())
-            if text and len(text.strip()) > 50:
-                pages.append({"page": i + 1, "text": text})
+            page = doc[i]
+
+            text = page.get_text("text")
+
+            print(f"Page {i+1}: {len(text)} characters")
+
+            if text.strip():
+                print(f"First 100 chars: {text[:100]}")
+                pages.append({
+                    "page": i + 1,
+                    "text": clean_text(text)
+                })
+            else:
+                print(f"Page {i+1} contains NO extractable text")
+
         doc.close()
-        print(f"Extracted {len(pages)} pages from PDF")
+
+        print("=" * 60)
+        print(f"Pages extracted: {len(pages)}")
+        print("=" * 60)
+
         return pages
+
     except Exception as e:
         print(f"PDF extraction error: {e}")
         raise
