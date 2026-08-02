@@ -1,41 +1,105 @@
-# Python
+# ==========================================================
+# PYTHON
+# ==========================================================
+
 __pycache__/
 *.py[cod]
 *.pyo
 *.pyd
-.Python
-*.egg
-*.egg-info/
-dist/
-build/
-.eggs/
+*.so
 
-# Environment variables
+# Virtual Environment
+.venv/
+venv/
+env/
+ENV/
+
+# Environment Variables
 .env
 .env.*
 !.env.example
 
-# Virtual environments
-venv/
-env/
-.venv/
-.env/
-
-# Node / frontend
-node_modules/
-frontend/node_modules/
+# Python Build
+build/
 dist/
-frontend/dist/
+*.egg-info/
+.eggs/
 
-# Uploads / user data
+# Logs
+*.log
+
+# ==========================================================
+# FASTAPI BACKEND
+# ==========================================================
+
+backend/__pycache__/
+backend/*.pyc
+
+# Local storage (no longer used after Supabase/Qdrant Cloud)
 backend/uploads/
+backend/chroma_db/
+backend/qdrant_data/
+backend/pdf_store.json
 
-# IDE
+# Temporary files
+backend/temp/
+backend/tmp/
+*.tmp
+
+# ==========================================================
+# NODE / REACT / VITE
+# ==========================================================
+
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# npm logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ==========================================================
+# VSCODE / JETBRAINS
+# ==========================================================
+
 .vscode/
 .idea/
-*.swp
-*.swo
 
-# OS
+# ==========================================================
+# macOS / Windows
+# ==========================================================
+
 .DS_Store
 Thumbs.db
+Desktop.ini
+
+# ==========================================================
+# TESTING
+# ==========================================================
+
+.pytest_cache/
+.coverage
+htmlcov/
+
+# ==========================================================
+# JUPYTER
+# ==========================================================
+
+.ipynb_checkpoints/
+
+# ==========================================================
+# DATABASES
+# ==========================================================
+
+*.sqlite3
+*.db
+
+# ==========================================================
+# MISC
+# ==========================================================
+
+*.bak
+*.swp
+*.swo
