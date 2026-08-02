@@ -14,69 +14,52 @@ venv/
 env/
 ENV/
 
-# Environment Variables
+# ==========================================================
+# ENVIRONMENT VARIABLES (IMPORTANT)
+# ==========================================================
+
 .env
 .env.*
+backend/.env
+frontend/.env
+
+# Keep template env file
 !.env.example
 
-# Python Build
+# ==========================================================
+# PYTHON BUILD FILES
+# ==========================================================
+
 build/
 dist/
 *.egg-info/
 .eggs/
 
-# Logs
-*.log
-
 # ==========================================================
-# FASTAPI BACKEND
-# ==========================================================
-
-backend/__pycache__/
-backend/*.pyc
-
-# Local storage (no longer used after Supabase/Qdrant Cloud)
-backend/uploads/
-backend/chroma_db/
-backend/qdrant_data/
-backend/pdf_store.json
-
-# Temporary files
-backend/temp/
-backend/tmp/
-*.tmp
-
-# ==========================================================
-# NODE / REACT / VITE
+# REACT / VITE
 # ==========================================================
 
 frontend/node_modules/
 frontend/dist/
 frontend/.vite/
 
-# npm logs
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-
 # ==========================================================
-# VSCODE / JETBRAINS
+# LOCAL DATA
 # ==========================================================
 
-.vscode/
-.idea/
+backend/uploads/
+backend/pdf_store.json
+backend/chroma_db/
+backend/qdrant_data/
 
 # ==========================================================
-# macOS / Windows
+# LOG FILES
 # ==========================================================
 
-.DS_Store
-Thumbs.db
-Desktop.ini
+*.log
 
 # ==========================================================
-# TESTING
+# TEST CACHE
 # ==========================================================
 
 .pytest_cache/
@@ -97,9 +80,25 @@ htmlcov/
 *.db
 
 # ==========================================================
-# MISC
+# IDE
 # ==========================================================
 
+.vscode/
+.idea/
+
+# ==========================================================
+# OPERATING SYSTEM
+# ==========================================================
+
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# ==========================================================
+# TEMP FILES
+# ==========================================================
+
+*.tmp
 *.bak
 *.swp
 *.swo
