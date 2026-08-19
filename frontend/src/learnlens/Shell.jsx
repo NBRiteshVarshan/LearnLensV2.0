@@ -64,7 +64,7 @@ function getCustomColorVars(colorKey) {
   return { "--s": dark ? c.d : c.l, "--s-soft": dark ? c.sd : c.sl, "--s-line": dark ? c.ld : c.ll };
 }
 
-function Sidebar({ route, setRoute, subjects, workflow, setWorkflow, user, onAddSubject }) {
+function Sidebar({ route, setRoute, subjects, workflow, setWorkflow, user, onAddSubject, onLogout }) {
   const [openSubjects, setOpen] = useState(true);
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem("ll-sidebar-collapsed") === "true");
   const [showLabels, setShowLabels] = useState(() => localStorage.getItem("ll-sidebar-collapsed") !== "true");
@@ -231,13 +231,13 @@ function Sidebar({ route, setRoute, subjects, workflow, setWorkflow, user, onAdd
       <div style={{ marginTop: "auto", padding: showLabels ? "12px 14px" : "12px 0", borderTop: "1px solid var(--line)" }}>
         {showLabels && <div className="label-xs" style={{ marginBottom: 8 }}>Workflow</div>}
         <WorkflowSwitch value={workflow} onChange={setWorkflow} collapsed={!showLabels} />
-        <ProfileWidget user={user} collapsed={!showLabels} />
+        <ProfileWidget user={user} collapsed={!showLabels} onLogout={onLogout} />
       </div>
     </aside>
   );
 }
 
-function ProfileWidget({ user, collapsed }) {
+function ProfileWidget({ user, collapsed, onLogout }) {
   const [open, setOpen] = useState(false);
   const [popupPos, setPopupPos] = useState({ bottom: 0, left: 0, width: 0 });
   const btnRef = useRef(null);
@@ -360,21 +360,23 @@ function ProfileWidget({ user, collapsed }) {
           <ProfileMenuRow icon={Ic.Chart}   label="View profile" hint={`L${u.level} · ${u.xp} XP`} />
           <ProfileMenuRow icon={Ic.Cog}     label="Settings"     hint="preferences" />
           <div style={{ height: 1, background: "var(--line-soft)", margin: "4px 6px" }} />
-          <ProfileMenuRow icon={Ic.Logout}  label="Sign out"     tone="danger" />
+          <ProfileMenuRow icon={Ic.Logout}  label="Sign out"     tone="danger" onClick={onLogout} />
         </div>
       )}
     </div>
   );
 }
 
-function ProfileMenuRow({ icon: I, label, hint, tone }) {
+function ProfileMenuRow({ icon: I, label, hint, tone, onClick }) {
   return (
-    <button style={{
-      display: "flex", alignItems: "center", gap: 9, width: "100%",
-      padding: "7px 10px", borderRadius: 6,
-      color: tone === "danger" ? "var(--due)" : "var(--ink-2)",
-      fontSize: "var(--fs-13)", textAlign: "left",
-    }}
+    <button
+      onClick={onClick}
+      style={{
+        display: "flex", alignItems: "center", gap: 9, width: "100%",
+        padding: "7px 10px", borderRadius: 6,
+        color: tone === "danger" ? "var(--due)" : "var(--ink-2)",
+        fontSize: "var(--fs-13)", textAlign: "left",
+      }}
       onMouseEnter={e => e.currentTarget.style.background = "var(--surface-2)"}
       onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
       <span style={{ width: 13, height: 13, color: tone === "danger" ? "var(--due)" : "var(--ink-3)" }}><I /></span>

@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from "react";
 
+import { AuthProvider, useAuth } from "./auth/useAuth.jsx";
+import { AuthScreen } from "./auth/AuthScreen.jsx";
+
 import { useAppData } from "./learnlens/data.js";
 import { Sidebar, TopBar, CommandBar, Ic, SUBJECT_ICONS, CUSTOM_COLORS, getCustomColorVars, WORKFLOWS } from "./learnlens/Shell.jsx";
 import { Dashboard } from "./learnlens/Dashboard.jsx";
@@ -44,7 +47,6 @@ function loadSavedSubjects() {
   try { return JSON.parse(localStorage.getItem(LS_SUBJECTS_KEY)) || []; } catch { return []; }
 }
 
-
 function blankSubject(template) {
   return {
     ...template,
@@ -63,12 +65,50 @@ function blankSubject(template) {
   };
 }
 
+function getInitials(name) {
+  const parts = (name || "").trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return "?";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
 const jumpBtn = {
   padding: "6px 10px", border: "1px solid var(--line)", borderRadius: 6,
   fontSize: 12, background: "var(--surface)", color: "var(--ink-2)", cursor: "pointer",
 };
 
-export default function App() {
+// ── Loading screen shown while /api/auth/me resolves ──────────────────────────
+function AuthLoading() {
+  return (
+    <div style={{
+      minHeight: "100vh",
+      background: "var(--bg)",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+    }}>
+      <div style={{
+        width: 44,
+        height: 44,
+        borderRadius: 12,
+        background: "var(--ink)",
+        display: "grid",
+        placeItems: "center",
+        color: "var(--bg)",
+        fontFamily: "var(--font-serif)",
+        fontWeight: 600,
+        fontSize: 24,
+        animation: "ll-pulse-soft 1.8s ease-in-out infinite",
+      }}>
+        L
+      </div>
+    </div>
+  );
+}
+
+// ── Main application (rendered only when authenticated) ───────────────────────
+function AppContent() {
+  const auth = useAuth();
   const [route, setRoute] = useState({ view: "dashboard" });
   const [cmdOpen, setCmdOpen] = useState(false);
   const [addSubjOpen, setAddSubjOpen] = useState(false);
@@ -77,7 +117,6 @@ export default function App() {
   const [userSubjects, setUserSubjects] = useState(loadSavedSubjects);
   const [, forceTick] = useState(0);
 
-  // Mirror demo state to window for components that use useAppData()
   useEffect(() => {
     window.__LL_DEMO = !!t.demo;
     window.__LL_USER_SUBJECTS = userSubjects;
@@ -85,7 +124,6 @@ export default function App() {
     try { localStorage.setItem(LS_SUBJECTS_KEY, JSON.stringify(userSubjects)); } catch {}
   }, [t.demo, userSubjects]);
 
-  // Apply theme / density / accent
   useEffect(() => {
     document.documentElement.dataset.theme = t.theme;
     document.documentElement.dataset.density = t.density;
@@ -96,7 +134,6 @@ export default function App() {
     document.documentElement.style.setProperty("--accent-line", dark ? a.line_d : a.line_l);
   }, [t.theme, t.density, t.accent]);
 
-  // ⌘K + Escape
   useEffect(() => {
     const onKey = (e) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
@@ -111,6 +148,11 @@ export default function App() {
 
   const data = useAppData();
   const subjects = data.subjects;
+
+  // Merge real user name into the display user object
+  const displayUser = auth.user
+    ? { ...(data.user || {}), name: auth.user.name, initials: getInitials(auth.user.name) }
+    : data.user;
 
   const crumbs = (() => {
     if (route.view === "dashboard") return [{ label: "Today",     icon: Ic.Home }];
@@ -144,72 +186,36 @@ export default function App() {
   const openAddSubject = () => setAddSubjOpen(true);
 
   const addSubject = (template) => {
-  setUserSubjects((s) => {
-    if (s.find((x) => x.id === template.id)) return s;
-    return [...s, blankSubject(template)];
-  });
+    setUserSubjects((s) => {
+      if (s.find((x) => x.id === template.id)) return s;
+      return [...s, blankSubject(template)];
+    });
+    setAddSubjOpen(false);
+    setRoute({ view: "subject", id: template.id });
+  };
 
-  setAddSubjOpen(false);
-  setRoute({ view: "subject", id: template.id });
-};
-
-const deleteSubject = (id) => {
-  setUserSubjects((s) => s.filter((x) => x.id !== id));
-
-  // if currently opened subject gets deleted
-  if (route.view === "subject" && route.id === id) {
-    setRoute({ view: "dashboard" });
-  }
-};
+  const deleteSubject = (id) => {
+    setUserSubjects((s) => s.filter((x) => x.id !== id));
+    if (route.view === "subject" && route.id === id) {
+      setRoute({ view: "dashboard" });
+    }
+  };
 
   let body = null;
   if (route.view === "dashboard")  body = <Dashboard setRoute={setRoute} workflow={t.workflow} onAddSubject={openAddSubject} />;
   else if (route.view === "subject")
-  body = (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        gap: 20,
-        paddingBottom: 40,
-      }}
-    >
-      <SubjectRouter id={route.id} />
-
-      <div
-        style={{
-          margin: "0 24px",
-          borderTop: "1px solid var(--line)",
-          paddingTop: 20,
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            marginBottom: 14,
-          }}
-        >
-          <span style={{ width: 18, height: 18, color: "var(--accent)" }}>
-            <Ic.Bot />
-          </span>
-
-          <div
-            style={{
-              fontSize: 18,
-              fontWeight: 600,
-              color: "var(--ink)",
-            }}
-          >
-            AI Study Tools
+    body = (
+      <div style={{ display: "flex", flexDirection: "column", gap: 20, paddingBottom: 40 }}>
+        <SubjectRouter id={route.id} />
+        <div style={{ margin: "0 24px", borderTop: "1px solid var(--line)", paddingTop: 20 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+            <span style={{ width: 18, height: 18, color: "var(--accent)" }}><Ic.Bot /></span>
+            <div style={{ fontSize: 18, fontWeight: 600, color: "var(--ink)" }}>AI Study Tools</div>
           </div>
+          <AITools subjectId={route.id} />
         </div>
-
-        <AITools subjectId={route.id} />
       </div>
-    </div>
-  );
+    );
   else if (route.view === "calendar")  body = <Calendar_View />;
   else if (route.view === "analytics") body = <Analytics />;
 
@@ -223,8 +229,9 @@ const deleteSubject = (id) => {
         subjects={subjects}
         workflow={t.workflow}
         setWorkflow={(w) => setTweak("workflow", w)}
-        user={data.user}
+        user={displayUser}
         onAddSubject={openAddSubject}
+        onLogout={auth.logout}
       />
       <main style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
         <TopBar
@@ -297,7 +304,26 @@ const deleteSubject = (id) => {
   );
 }
 
-// ── Add Subject modal ──────────────────────────────────────────────────────
+// ── Root component ─────────────────────────────────────────────────────────────
+export default function App() {
+  return (
+    <AuthProvider>
+      <AuthGate />
+    </AuthProvider>
+  );
+}
+
+function AuthGate() {
+  const auth = useAuth();
+
+  if (auth.status === "loading") return <AuthLoading />;
+  if (auth.status !== "authenticated") {
+    return <AuthScreen onAuth={auth.login} msg={auth._expiredMsg} />;
+  }
+  return <AppContent />;
+}
+
+// ── Add Subject modal ──────────────────────────────────────────────────────────
 const CUSTOM_TAG_OPTIONS = ["Core", "Elective", "Lab", "Seminar", "Independent", "Language", "Other"];
 
 function AddSubjectModal({ open, onClose, existing, onAdd, onDelete }) {
@@ -313,15 +339,7 @@ function AddSubjectModal({ open, onClose, existing, onAdd, onDelete }) {
   const [nameErr, setNameErr] = useState(false);
 
   const resetAndClose = () => {
-    setForm({
-      name: "",
-      code: "",
-      description: "",
-      icon: "Note",
-      color: "indigo",
-      tag: "Core",
-    });
-
+    setForm({ name: "", code: "", description: "", icon: "Note", color: "indigo", tag: "Core" });
     setNameErr(false);
     onClose();
   };
@@ -331,9 +349,7 @@ function AddSubjectModal({ open, onClose, existing, onAdd, onDelete }) {
       setNameErr(true);
       return;
     }
-
     const id = generateId();
-
     onAdd({
       id,
       name: form.name.trim(),
@@ -357,14 +373,9 @@ function AddSubjectModal({ open, onClose, existing, onAdd, onDelete }) {
     const c = CUSTOM_COLORS[key];
     const dark = document.documentElement.dataset.theme === "dark";
     const main = dark ? c.d : c.l;
-
     return {
-      width: 24,
-      height: 24,
-      borderRadius: "50%",
-      background: main,
-      cursor: "pointer",
-      flexShrink: 0,
+      width: 24, height: 24, borderRadius: "50%",
+      background: main, cursor: "pointer", flexShrink: 0,
       outline: selected ? `2px solid ${main}` : "none",
       outlineOffset: 2,
       boxShadow: selected ? "0 0 0 1px var(--surface)" : "none",
@@ -376,14 +387,10 @@ function AddSubjectModal({ open, onClose, existing, onAdd, onDelete }) {
     <div
       onClick={resetAndClose}
       style={{
-        position: "fixed",
-        inset: 0,
+        position: "fixed", inset: 0,
         background: "color-mix(in oklch, var(--bg) 60%, black 40%)",
-        backdropFilter: "blur(4px)",
-        zIndex: 100,
-        display: "flex",
-        alignItems: "flex-start",
-        justifyContent: "center",
+        backdropFilter: "blur(4px)", zIndex: 100,
+        display: "flex", alignItems: "flex-start", justifyContent: "center",
         paddingTop: "10vh",
       }}
     >
@@ -391,106 +398,44 @@ function AddSubjectModal({ open, onClose, existing, onAdd, onDelete }) {
         onClick={(e) => e.stopPropagation()}
         style={{
           width: 640,
-          background: "var(--surface)",
-          border: "1px solid var(--line)",
-          borderRadius: "var(--r-lg)",
-          boxShadow: "var(--shadow-lg)",
-          overflow: "hidden",
-          animation: "ll-fade-in 160ms ease",
+          background: "var(--surface)", border: "1px solid var(--line)",
+          borderRadius: "var(--r-lg)", boxShadow: "var(--shadow-lg)",
+          overflow: "hidden", animation: "ll-fade-in 160ms ease",
         }}
       >
         {/* Header */}
-        <div
-          style={{
-            padding: "16px 20px",
-            borderBottom: "1px solid var(--line)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-          }}
-        >
+        <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--line)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div>
             <div className="label-xs">New subject</div>
-            <div style={{ fontSize: "var(--fs-18)", fontWeight: 500 }}>
-              Create a custom subject
-            </div>
+            <div style={{ fontSize: "var(--fs-18)", fontWeight: 500 }}>Create a custom subject</div>
           </div>
-
-          <button
-            onClick={resetAndClose}
-            style={{
-              width: 28,
-              height: 28,
-              color: "var(--ink-3)",
-              display: "grid",
-              placeItems: "center",
-              borderRadius: 4,
-            }}
-          >
-            <span style={{ width: 14, height: 14 }}>
-              <Ic.X />
-            </span>
+          <button onClick={resetAndClose} style={{ width: 28, height: 28, color: "var(--ink-3)", display: "grid", placeItems: "center", borderRadius: 4 }}>
+            <span style={{ width: 14, height: 14 }}><Ic.X /></span>
           </button>
         </div>
 
         {/* Form */}
-        <div
-          style={{
-            padding: 20,
-            display: "flex",
-            flexDirection: "column",
-            gap: 18,
-          }}
-        >
+        <div style={{ padding: 20, display: "flex", flexDirection: "column", gap: 18 }}>
           {/* Name + Code */}
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1fr auto",
-              gap: 10,
-            }}
-          >
+          <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 10 }}>
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               <label className="label-xs">Subject name *</label>
-
               <input
                 autoFocus
                 value={form.name}
-                onChange={(e) => {
-                  setForm((f) => ({ ...f, name: e.target.value }));
-                  setNameErr(false);
-                }}
+                onChange={(e) => { setForm((f) => ({ ...f, name: e.target.value })); setNameErr(false); }}
                 onKeyDown={(e) => e.key === "Enter" && submitCustom()}
                 placeholder="e.g. Cognitive Science"
-                style={{
-                  padding: "9px 11px",
-                  border: `1px solid ${nameErr ? "var(--due)" : "var(--line)"}`,
-                  borderRadius: "var(--r)",
-                  fontSize: "var(--fs-14)",
-                  background: "var(--surface)",
-                  color: "var(--ink)",
-                }}
+                style={{ padding: "9px 11px", border: `1px solid ${nameErr ? "var(--due)" : "var(--line)"}`, borderRadius: "var(--r)", fontSize: "var(--fs-14)", background: "var(--surface)", color: "var(--ink)" }}
               />
             </div>
-
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               <label className="label-xs">Course code</label>
-
               <input
                 value={form.code}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, code: e.target.value }))
-                }
+                onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))}
                 placeholder="e.g. PSYC 210"
-                style={{
-                  width: 120,
-                  padding: "9px 11px",
-                  border: "1px solid var(--line)",
-                  borderRadius: "var(--r)",
-                  fontSize: "var(--fs-14)",
-                  background: "var(--surface)",
-                  color: "var(--ink)",
-                }}
+                style={{ width: 120, padding: "9px 11px", border: "1px solid var(--line)", borderRadius: "var(--r)", fontSize: "var(--fs-14)", background: "var(--surface)", color: "var(--ink)" }}
               />
             </div>
           </div>
@@ -498,51 +443,25 @@ function AddSubjectModal({ open, onClose, existing, onAdd, onDelete }) {
           {/* Description */}
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             <label className="label-xs">Description</label>
-
             <input
               value={form.description}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, description: e.target.value }))
-              }
+              onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
               placeholder="e.g. Memory, cognition, decision making"
-              style={{
-                padding: "9px 11px",
-                border: "1px solid var(--line)",
-                borderRadius: "var(--r)",
-                fontSize: "var(--fs-14)",
-                background: "var(--surface)",
-                color: "var(--ink)",
-              }}
+              style={{ padding: "9px 11px", border: "1px solid var(--line)", borderRadius: "var(--r)", fontSize: "var(--fs-14)", background: "var(--surface)", color: "var(--ink)" }}
             />
           </div>
 
           {/* Icon Picker */}
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             <label className="label-xs">Icon</label>
-
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
               {CUSTOM_ICON_OPTIONS.map((key) => {
                 const I = Ic[key];
                 const sel = form.icon === key;
-
                 return (
-                  <button
-                    key={key}
-                    onClick={() => setForm((f) => ({ ...f, icon: key }))}
-                    style={{
-                      width: 36,
-                      height: 36,
-                      borderRadius: "var(--r)",
-                      border: `1px solid ${sel ? "var(--accent-line)" : "var(--line)"}`,
-                      background: sel ? "var(--accent-soft)" : "var(--surface)",
-                      color: sel ? "var(--accent)" : "var(--ink-3)",
-                      display: "grid",
-                      placeItems: "center",
-                    }}
-                  >
-                    <span style={{ width: 17, height: 17 }}>
-                      {I && <I />}
-                    </span>
+                  <button key={key} onClick={() => setForm((f) => ({ ...f, icon: key }))}
+                    style={{ width: 36, height: 36, borderRadius: "var(--r)", border: `1px solid ${sel ? "var(--accent-line)" : "var(--line)"}`, background: sel ? "var(--accent-soft)" : "var(--surface)", color: sel ? "var(--accent)" : "var(--ink-3)", display: "grid", placeItems: "center" }}>
+                    <span style={{ width: 17, height: 17 }}>{I && <I />}</span>
                   </button>
                 );
               })}
@@ -552,15 +471,9 @@ function AddSubjectModal({ open, onClose, existing, onAdd, onDelete }) {
           {/* Color Picker */}
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             <label className="label-xs">Color</label>
-
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
               {colorKeys.map((key) => (
-                <button
-                  key={key}
-                  title={key}
-                  onClick={() => setForm((f) => ({ ...f, color: key }))}
-                  style={colorSwatchStyle(key, form.color === key)}
-                />
+                <button key={key} title={key} onClick={() => setForm((f) => ({ ...f, color: key }))} style={colorSwatchStyle(key, form.color === key)} />
               ))}
             </div>
           </div>
@@ -568,26 +481,10 @@ function AddSubjectModal({ open, onClose, existing, onAdd, onDelete }) {
           {/* Category */}
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             <label className="label-xs">Category</label>
-
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
               {CUSTOM_TAG_OPTIONS.map((tag) => (
-                <button
-                  key={tag}
-                  onClick={() => setForm((f) => ({ ...f, tag }))}
-                  style={{
-                    padding: "5px 12px",
-                    borderRadius: 100,
-                    border: `1px solid ${form.tag === tag ? "var(--accent-line)" : "var(--line)"}`,
-                    background:
-                      form.tag === tag
-                        ? "var(--accent-soft)"
-                        : "var(--surface)",
-                    color:
-                      form.tag === tag ? "var(--accent)" : "var(--ink-3)",
-                    fontSize: "var(--fs-13)",
-                    cursor: "pointer",
-                  }}
-                >
+                <button key={tag} onClick={() => setForm((f) => ({ ...f, tag }))}
+                  style={{ padding: "5px 12px", borderRadius: 100, border: `1px solid ${form.tag === tag ? "var(--accent-line)" : "var(--line)"}`, background: form.tag === tag ? "var(--accent-soft)" : "var(--surface)", color: form.tag === tag ? "var(--accent)" : "var(--ink-3)", fontSize: "var(--fs-13)", cursor: "pointer" }}>
                   {tag}
                 </button>
               ))}
@@ -595,110 +492,26 @@ function AddSubjectModal({ open, onClose, existing, onAdd, onDelete }) {
           </div>
 
           {/* Existing Subjects */}
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: 10,
-              paddingTop: 4,
-            }}
-          >
+          <div style={{ display: "flex", flexDirection: "column", gap: 10, paddingTop: 4 }}>
             <label className="label-xs">Your Subjects</label>
-
             {existing.length === 0 ? (
-              <div
-                style={{
-                  fontSize: 13,
-                  color: "var(--ink-3)",
-                  padding: "10px 0",
-                }}
-              >
-                No custom subjects created yet.
-              </div>
+              <div style={{ fontSize: 13, color: "var(--ink-3)", padding: "10px 0" }}>No custom subjects created yet.</div>
             ) : (
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 8,
-                  maxHeight: 180,
-                  overflowY: "auto",
-                  paddingRight: 4,
-                }}
-              >
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 180, overflowY: "auto", paddingRight: 4 }}>
                 {existing.map((subj) => {
                   const IconComp = Ic[subj.icon] || Ic.Note;
-
                   return (
-                    <div
-                      key={subj.id}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        border: "1px solid var(--line)",
-                        borderRadius: "var(--r)",
-                        padding: "10px 12px",
-                        background: "var(--surface-2)",
-                      }}
-                    >
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 10,
-                        }}
-                      >
-                        <div
-                          style={{
-                            width: 30,
-                            height: 30,
-                            borderRadius: 8,
-                            background: "var(--accent-soft)",
-                            color: "var(--accent)",
-                            display: "grid",
-                            placeItems: "center",
-                          }}
-                        >
-                          <span style={{ width: 15, height: 15 }}>
-                            <IconComp />
-                          </span>
+                    <div key={subj.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", border: "1px solid var(--line)", borderRadius: "var(--r)", padding: "10px 12px", background: "var(--surface-2)" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        <div style={{ width: 30, height: 30, borderRadius: 8, background: "var(--accent-soft)", color: "var(--accent)", display: "grid", placeItems: "center" }}>
+                          <span style={{ width: 15, height: 15 }}><IconComp /></span>
                         </div>
-
                         <div>
-                          <div
-                            style={{
-                              fontSize: 14,
-                              fontWeight: 500,
-                              color: "var(--ink)",
-                            }}
-                          >
-                            {subj.name}
-                          </div>
-
-                          <div
-                            style={{
-                              fontSize: 12,
-                              color: "var(--ink-3)",
-                            }}
-                          >
-                            {subj.tag || "Custom"}
-                          </div>
+                          <div style={{ fontSize: 14, fontWeight: 500, color: "var(--ink)" }}>{subj.name}</div>
+                          <div style={{ fontSize: 12, color: "var(--ink-3)" }}>{subj.tag || "Custom"}</div>
                         </div>
                       </div>
-
-                      <button
-                        onClick={() => onDelete(subj.id)}
-                        style={{
-                          padding: "6px 10px",
-                          borderRadius: 8,
-                          border: "1px solid var(--line)",
-                          background: "transparent",
-                          color: "var(--due)",
-                          fontSize: 12,
-                          cursor: "pointer",
-                        }}
-                      >
+                      <button onClick={() => onDelete(subj.id)} style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid var(--line)", background: "transparent", color: "var(--due)", fontSize: 12, cursor: "pointer" }}>
                         Delete
                       </button>
                     </div>
@@ -707,30 +520,11 @@ function AddSubjectModal({ open, onClose, existing, onAdd, onDelete }) {
               </div>
             )}
           </div>
-          {/* Footer */}
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              paddingTop: 8,
-            }}
-          >
-            <div style={{ fontSize: 12, color: "var(--ink-3)" }}>
-              Your subject workspace will be created instantly.
-            </div>
 
-            <button
-              onClick={submitCustom}
-              style={{
-                padding: "8px 16px",
-                borderRadius: "var(--r)",
-                fontSize: "var(--fs-13)",
-                background: "var(--accent)",
-                color: "var(--on-accent)",
-                fontWeight: 500,
-              }}
-            >
+          {/* Footer */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 8 }}>
+            <div style={{ fontSize: 12, color: "var(--ink-3)" }}>Your subject workspace will be created instantly.</div>
+            <button onClick={submitCustom} style={{ padding: "8px 16px", borderRadius: "var(--r)", fontSize: "var(--fs-13)", background: "var(--accent)", color: "var(--on-accent)", fontWeight: 500 }}>
               Create subject
             </button>
           </div>
